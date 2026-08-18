@@ -35,6 +35,51 @@ export function AuthProvider({ children, onAddToCartSuccess }) {
 
   const isLoggedIn = Boolean(token && user);
 
+  useEffect(() => {
+  const handleUnauthorized = () => {
+    setToken(null);
+    setUser(null);
+
+    localStorage.removeItem(
+      AUTH_TOKEN_KEY,
+    );
+
+    localStorage.removeItem(
+      AUTH_USER_KEY,
+    );
+
+    setPendingCartItem(null);
+
+    showToast(
+      'Your session has expired. Please login again.',
+    );
+
+    if (
+      [
+        '#profile',
+        '#orders',
+        '#checkout',
+      ].includes(
+        window.location.hash,
+      )
+    ) {
+      window.location.hash = 'home';
+    }
+  };
+
+  window.addEventListener(
+    'somnera:unauthorized',
+    handleUnauthorized,
+  );
+
+  return () => {
+    window.removeEventListener(
+      'somnera:unauthorized',
+      handleUnauthorized,
+    );
+  };
+}, []);
+
   // Sync token & user changes to localStorage
   const saveSession = (newToken, newUser) => {
     setToken(newToken);

@@ -1,20 +1,16 @@
 import axios from 'axios';
 
+
 /*
 ==================================================
 SOMNERA COMMON API CLIENT
 ==================================================
-
-Local:
-VITE_API_BASE_URL=http://localhost:8082
-
-Later production:
-VITE_API_BASE_URL=https://your-backend-url.com
 */
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   'http://localhost:8082';
+
 
 export const AUTH_TOKEN_KEY =
   'somnera_auth_token';
@@ -30,6 +26,7 @@ AXIOS INSTANCE
 */
 
 const api = axios.create({
+
   baseURL: API_BASE_URL,
 
   headers: {
@@ -37,6 +34,7 @@ const api = axios.create({
   },
 
   timeout: 30000,
+
 });
 
 
@@ -44,30 +42,60 @@ const api = axios.create({
 ==================================================
 REQUEST INTERCEPTOR
 ==================================================
-
-Automatically attaches:
-
-Authorization: Bearer <token>
-
-for authenticated API requests.
 */
 
 api.interceptors.request.use(
-  (config) => {
-    const token =
-      localStorage.getItem(AUTH_TOKEN_KEY);
 
-    if (token) {
+  (config) => {
+
+    const token =
+      localStorage.getItem(
+        AUTH_TOKEN_KEY,
+      );
+
+
+    const url =
+      String(
+        config.url || '',
+      );
+
+
+    const isAuthRequest =
+      url.startsWith(
+        '/api/auth/',
+      );
+
+
+    /*
+     * Do not attach an old JWT to:
+     *
+     * login
+     * register
+     * forgot password
+     * OTP APIs
+     */
+
+    if (
+      token &&
+      !isAuthRequest
+    ) {
+
       config.headers.Authorization =
         `Bearer ${token}`;
     }
 
+
     return config;
   },
 
+
   (error) => {
-    return Promise.reject(error);
+
+    return Promise.reject(
+      error,
+    );
   },
+
 );
 
 
@@ -78,132 +106,237 @@ RESPONSE INTERCEPTOR
 */
 
 api.interceptors.response.use(
+
+  /*
+  ================================================
+  SUCCESS RESPONSE
+  ================================================
+  */
+
   (response) => {
+
     return response;
   },
 
+
+  /*
+  ================================================
+  ERROR RESPONSE
+  ================================================
+  */
+
   (error) => {
+
+    const status =
+      error.response?.status;
+
+
+    const requestUrl =
+      String(
+        error.config?.url ||
+        '',
+      );
+
+
+    const isAuthRequest =
+      requestUrl.startsWith(
+        '/api/auth/',
+      );
+
+
+    const token =
+      localStorage.getItem(
+        AUTH_TOKEN_KEY,
+      );
+
+
     /*
     ==============================================
     401 - INVALID / EXPIRED JWT
     ==============================================
+
+    Important:
+
+    Wrong password on /api/auth/login
+    must NOT clear session as an
+    "expired session".
+
+    Only protected API failures should
+    trigger automatic logout.
     */
 
-    if (error.response?.status === 401) {
+    if (
+      status === 401 &&
+      token &&
+      !isAuthRequest
+    ) {
+
       localStorage.removeItem(
         AUTH_TOKEN_KEY,
       );
+
 
       localStorage.removeItem(
         AUTH_USER_KEY,
       );
 
+
       window.dispatchEvent(
-        new Event('somnera:unauthorized'),
+        new Event(
+          'somnera:unauthorized',
+        ),
       );
     }
 
-    return Promise.reject(error);
+
+    return Promise.reject(
+      error,
+    );
   },
+
 );
 
 
 /*
 ==================================================
-ERROR MESSAGE HELPER
+API ERROR MESSAGE HELPER
 ==================================================
 */
 
 export function getApiErrorMessage(
   error,
-  fallbackMessage = 'Something went wrong. Please try again.',
+  fallbackMessage =
+    'Something went wrong. Please try again.',
 ) {
 
   /*
-  Backend returned an error response
+  ================================================
+  BACKEND RETURNED RESPONSE
+  ================================================
   */
 
   if (error.response) {
+
     const backendData =
       error.response.data;
+
+
+    /*
+     * Spring Boot ApiResponse message
+     */
 
     if (
       typeof backendData?.message ===
         'string' &&
       backendData.message.trim()
     ) {
+
       return backendData.message;
     }
+
+
+    /*
+     * Generic backend error field
+     */
 
     if (
       typeof backendData?.error ===
         'string' &&
       backendData.error.trim()
     ) {
+
       return backendData.error;
     }
 
+
     /*
-    Validation errors may sometimes come
-    as an object/map.
-    */
+     * Validation errors
+     */
 
     if (
       backendData?.errors &&
       typeof backendData.errors ===
         'object'
     ) {
+
       const firstError =
         Object.values(
           backendData.errors,
         )[0];
 
+
       if (
         typeof firstError ===
-        'string'
+          'string'
       ) {
+
         return firstError;
       }
     }
 
-    if (error.response.status === 401) {
+
+    /*
+     * HTTP status fallbacks
+     */
+
+    if (
+      error.response.status ===
+        401
+    ) {
+
       return (
-        'Your session has expired. ' +
-        'Please login again.'
+        backendData?.message ||
+        'Invalid email or password.'
       );
     }
 
-    if (error.response.status === 403) {
+
+    if (
+      error.response.status ===
+        403
+    ) {
+
       return (
+        backendData?.message ||
         'You are not authorized to perform this action.'
       );
     }
 
-    if (error.response.status === 404) {
+
+    if (
+      error.response.status ===
+        404
+    ) {
+
       return (
         backendData?.message ||
         'Requested resource was not found.'
       );
     }
 
+
     if (
-      error.response.status >= 500
+      error.response.status >=
+        500
     ) {
+
       return (
         backendData?.message ||
         'Server error. Please try again.'
       );
     }
+
   }
 
 
   /*
-  ==============================================
-  NO RESPONSE FROM SERVER
-  ==============================================
+  ================================================
+  SERVER NOT REACHABLE
+  ================================================
   */
 
   if (error.request) {
+
     return (
       'Unable to connect to the Somnera server. ' +
       'Please check that the backend is running.'
@@ -212,14 +345,16 @@ export function getApiErrorMessage(
 
 
   /*
-  ==============================================
-  AXIOS / JAVASCRIPT ERROR
-  ==============================================
+  ================================================
+  JAVASCRIPT / AXIOS ERROR
+  ================================================
   */
 
   if (error.message) {
+
     return error.message;
   }
+
 
   return fallbackMessage;
 }
@@ -227,24 +362,8 @@ export function getApiErrorMessage(
 
 /*
 ==================================================
-COMMON REQUEST HELPER
+COMMON API REQUEST HELPER
 ==================================================
-
-This helper is intentionally compatible with the
-existing authService API style:
-
-apiRequest(endpoint, method, data)
-
-Example:
-
-apiRequest(
-  '/api/auth/login',
-  'POST',
-  {
-    email,
-    password,
-  }
-)
 */
 
 export async function apiRequest(
@@ -253,43 +372,73 @@ export async function apiRequest(
   data = null,
   customHeaders = {},
 ) {
+
   try {
+
     const config = {
+
       url: endpoint,
+
       method,
-      headers: customHeaders,
+
+      headers:
+        customHeaders,
+
     };
 
-    if (data !== null) {
-      config.data = data;
+
+    if (
+      data !== null
+    ) {
+
+      config.data =
+        data;
     }
 
+
     const response =
-      await api.request(config);
+      await api.request(
+        config,
+      );
+
 
     return response.data;
 
+
   } catch (error) {
 
+
     const message =
-      getApiErrorMessage(error);
+      getApiErrorMessage(
+        error,
+      );
+
 
     console.error(
       `[Somnera API ${method} ${endpoint}]`,
       error,
     );
 
+
     const apiError =
-      new Error(message);
+      new Error(
+        message,
+      );
+
 
     apiError.status =
       error.response?.status;
 
+
     apiError.data =
       error.response?.data;
 
+
     throw apiError;
+
   }
+
 }
+
 
 export default api;

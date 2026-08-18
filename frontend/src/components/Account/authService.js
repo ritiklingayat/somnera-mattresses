@@ -3,35 +3,75 @@ import {
 } from '../../services/api';
 
 
-/**
- * Somnera Mattress
- * Authentication API Service
- *
- * IMPORTANT:
- *
- * Phase 1 only centralizes API communication.
- *
- * Exact authentication endpoint/DTO corrections
- * will be done during PHASE 2.
- */
-
-
 /*
 ==================================================
 LOGIN
 ==================================================
+Backend:
+POST /api/auth/login
+
+Request:
+{
+  email,
+  password
+}
+
+Backend wrapper:
+{
+  success,
+  message,
+  data: {
+    token,
+    tokenType,
+    userId,
+    firstName,
+    lastName,
+    email,
+    role
+  },
+  timestamp
+}
 */
 
 export async function loginApi({
   email,
   password,
 }) {
+  const response =
+    await apiRequest(
+      '/api/auth/login',
+      'POST',
+      {
+        email,
+        password,
+      },
+    );
+
+  return response.data;
+}
+
+
+/*
+==================================================
+SEND REGISTRATION OTP
+==================================================
+Backend:
+POST /api/auth/send-registration-otp
+
+Request:
+{
+  email
+}
+*/
+
+export async function generateRegistrationOtpApi(
+  email,
+) {
   return apiRequest(
-    '/api/auth/login',
+    '/api/auth/send-registration-otp',
     'POST',
     {
       email,
-      password,
     },
   );
 }
@@ -41,6 +81,8 @@ export async function loginApi({
 ==================================================
 REGISTER
 ==================================================
+Backend:
+POST /api/auth/register
 */
 
 export async function registerApi({
@@ -52,97 +94,22 @@ export async function registerApi({
   confirmPassword,
   otp,
 }) {
-  return apiRequest(
-    '/api/auth/register',
-    'POST',
-    {
-      firstName,
-      lastName,
-      email,
-      mobile,
-      password,
-      confirmPassword,
-      otp,
-    },
-  );
-}
+  const response =
+    await apiRequest(
+      '/api/auth/register',
+      'POST',
+      {
+        firstName,
+        lastName,
+        email,
+        mobile,
+        password,
+        confirmPassword,
+        otp,
+      },
+    );
 
-
-/*
-==================================================
-REGISTRATION OTP
-==================================================
-
-NOTE:
-Exact backend endpoint correction will be
-handled in Phase 2.
-*/
-
-export async function generateRegistrationOtpApi(
-  email,
-) {
-  return apiRequest(
-    '/api/auth/send-otp',
-    'POST',
-    {
-      email,
-    },
-  );
-}
-
-
-/*
-==================================================
-LEGACY OTP FUNCTIONS
-==================================================
-
-These currently belong to the existing frontend
-flow.
-
-They will be corrected/removed in Phase 2 after
-matching the real Spring Boot authentication flow.
-*/
-
-export async function sendOtpApi(
-  target,
-  purpose = 'REGISTER',
-) {
-  return apiRequest(
-    '/api/auth/send-otp',
-    'POST',
-    {
-      target,
-      purpose,
-    },
-  );
-}
-
-
-export async function verifyOtpApi(
-  target,
-  otp,
-  purpose = 'REGISTER',
-) {
-  return apiRequest(
-    '/api/auth/verify-otp',
-    'POST',
-    {
-      target,
-      otp,
-      purpose,
-    },
-  );
-}
-
-
-export async function resendOtpApi(
-  target,
-  purpose = 'REGISTER',
-) {
-  return sendOtpApi(
-    target,
-    purpose,
-  );
+  return response.data;
 }
 
 
@@ -150,6 +117,10 @@ export async function resendOtpApi(
 ==================================================
 FORGOT PASSWORD
 ==================================================
+Backend:
+POST /api/auth/forgot-password
+
+This API generates and emails the reset OTP.
 */
 
 export async function forgotPasswordApi({
@@ -169,18 +140,18 @@ export async function forgotPasswordApi({
 ==================================================
 RESET PASSWORD
 ==================================================
+Backend:
+POST /api/auth/reset-password
 
-NOTE:
-Current frontend expects token-based reset.
+There is NO separate forgot-password
+OTP verification API.
 
-Backend actually uses:
-email + otp + newPassword + confirmPassword
-
-This will be corrected in Phase 2.
+OTP is verified while resetting the password.
 */
 
 export async function resetPasswordApi({
-  token,
+  email,
+  otp,
   newPassword,
   confirmPassword,
 }) {
@@ -188,7 +159,8 @@ export async function resetPasswordApi({
     '/api/auth/reset-password',
     'POST',
     {
-      token,
+      email,
+      otp,
       newPassword,
       confirmPassword,
     },
@@ -198,23 +170,20 @@ export async function resetPasswordApi({
 
 /*
 ==================================================
-CURRENT USER
+CURRENT LOGGED-IN USER
 ==================================================
-
-Actual endpoint will be finalized in Phase 2.
+Backend:
+GET /api/users/me
 */
 
 export async function getCurrentUserApi() {
+  const response =
+    await apiRequest(
+      '/api/users/me',
+      'GET',
+    );
 
-  const endpoint =
-    import.meta.env
-      .VITE_PROFILE_ENDPOINT;
-
-  if (!endpoint) {
-    return null;
-  }
-
-  return apiRequest(endpoint);
+  return response.data;
 }
 
 
@@ -223,23 +192,22 @@ export async function getCurrentUserApi() {
 MY ORDERS
 ==================================================
 
-This will be properly integrated during
-Phase 8.
+Backend:
+GET /api/orders
+
+Full order integration will be completed
+during Phase 8.
+
+We keep this function now because the existing
+OrdersPage.jsx already imports it.
 */
 
 export async function getMyOrdersApi() {
-
-  const endpoint =
-    import.meta.env
-      .VITE_MY_ORDERS_ENDPOINT;
-
-  if (!endpoint) {
-    throw new Error(
-      'Backend support required: ' +
-      'configure an authenticated ' +
-      'current-user orders endpoint.',
+  const response =
+    await apiRequest(
+      '/api/orders',
+      'GET',
     );
-  }
 
-  return apiRequest(endpoint);
+  return response.data;
 }

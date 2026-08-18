@@ -110,11 +110,29 @@ function MainAppContent({ cart, setCart, catalog, setCatalog, categories, search
   }, []);
 
   useEffect(() => {
-    if (!isLoggedIn && ['profile', 'orders'].includes(page)) {
-      openAuthModal('login');
-      window.location.hash = 'home';
-    }
-  }, [isLoggedIn, page]);
+
+  const protectedPages = [
+    'profile',
+    'orders',
+    'checkout',
+  ];
+
+
+  if (
+    !isLoggedIn &&
+    protectedPages.includes(page)
+  ) {
+
+    openAuthModal('login');
+
+    window.location.hash =
+      'home';
+  }
+
+}, [
+  isLoggedIn,
+  page,
+]);
 
   let content;
   if (page === 'profile' && isLoggedIn) content = <ProfilePage />;

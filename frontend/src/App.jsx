@@ -6,18 +6,17 @@ import Home from './pages/Home';
 import Storefront from './pages/Storefront';
 import AdminPanel from './admin/AdminPanel';
 import { AuthProvider, AuthModal, useAuth } from './components/Account';
-import { getStoredProducts, saveStoredProducts, getStoredCategories } from './utils/storage';
+import {
+  getCategoriesApi,
+  getProductsApi,
+} from './services/catalogService';
 
-// One-time migration: ensure any stored products get productSection added.
-// getStoredProducts already runs migrateProducts, so we just save it back.
-(function runProductMigration() {
-  try {
-    const products = getStoredProducts();
-    saveStoredProducts(products);
-  } catch (e) {
-    // safe to ignore — migration is best-effort
-  }
-})();
+import {
+  mapCategoriesFromApi,
+  mapProductsFromApi,
+} from './utils/catalogMapper';
+
+
 
 import { MattressesPage } from './pages/MattressesPage';
 import { PillowsProtectorsPage } from './pages/PillowsProtectorsPage';
@@ -41,7 +40,19 @@ const pageFromHash = () => {
   return cleanHash || 'home';
 };
 
-function MainAppContent({ cart, setCart, catalog, setCatalog, categories, searchQuery, setSearchQuery, page, setPage }) {
+function MainAppContent({
+  cart,
+  setCart,
+  catalog,
+  setCatalog,
+  categories,
+  catalogLoading,
+  catalogError,
+  searchQuery,
+  setSearchQuery,
+  page,
+  setPage,
+}) {
   const { isLoggedIn, openAuthModal, toastMessage, showToast } = useAuth();
 
   const filteredCatalog = useMemo(() => {
@@ -67,11 +78,21 @@ function MainAppContent({ cart, setCart, catalog, setCatalog, categories, search
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const updateCatalog = (nextCatalog) => {
-    const newProducts = typeof nextCatalog === 'function' ? nextCatalog(catalog) : nextCatalog;
-    setCatalog(newProducts);
-    saveStoredProducts(newProducts);
-  };
+  const updateCatalog = (
+  nextCatalog,
+) => {
+
+  const newProducts =
+    typeof nextCatalog ===
+      'function'
+      ? nextCatalog(catalog)
+      : nextCatalog;
+
+
+  setCatalog(
+    newProducts,
+  );
+};
 
   const directAddToCart = (item) => {
     setCart((current) => {
@@ -133,6 +154,85 @@ function MainAppContent({ cart, setCart, catalog, setCatalog, categories, search
   isLoggedIn,
   page,
 ]);
+
+  if (catalogLoading) {
+
+  return (
+    <>
+      <Header
+        cartCount={cartCount}
+        categories={categories}
+        catalog={catalog}
+        onNavigate={changePage}
+        searchQuery={searchQuery}
+        onSearch={setSearchQuery}
+      />
+
+      <main>
+        <div
+          className="container"
+          style={{
+            padding:
+              '80px 20px',
+            textAlign:
+              'center',
+          }}
+        >
+          Loading products...
+        </div>
+      </main>
+
+      <Footer />
+
+      <WhatsAppButton />
+
+      <AuthModal />
+    </>
+  );
+}
+
+
+if (catalogError) {
+
+  return (
+    <>
+      <Header
+        cartCount={cartCount}
+        categories={categories}
+        catalog={catalog}
+        onNavigate={changePage}
+        searchQuery={searchQuery}
+        onSearch={setSearchQuery}
+      />
+
+      <main>
+        <div
+          className="container"
+          style={{
+            padding:
+              '80px 20px',
+            textAlign:
+              'center',
+          }}
+        >
+          <h2>
+            Unable to load products
+          </h2>
+
+          <p>
+            {catalogError}
+          </p>
+        </div>
+      </main>
+
+      <Footer />
+
+      <WhatsAppButton />
+
+      <AuthModal />
+    </>
+  );
+}
 
   let content;
   if (page === 'profile' && isLoggedIn) content = <ProfilePage />;
@@ -199,40 +299,174 @@ function MainAppContent({ cart, setCart, catalog, setCatalog, categories, search
 export default function App() {
   const [page, setPage] = useState(pageFromHash());
   const [cart, setCart] = useState([]);
-  const [catalog, setCatalog] = useState(getStoredProducts);
-  const [categories, setCategories] = useState(getStoredCategories);
+
+
+const [
+  catalog,
+  setCatalog,
+] = useState([]);
+
+
+const [
+  categories,
+  setCategories,
+] = useState([]);
+
+
+const [
+  catalogLoading,
+  setCatalogLoading,
+] = useState(true);
+
+
+const [
+  catalogError,
+  setCatalogError,
+] = useState('');
+
+
   const [searchQuery, setSearchQuery] = useState('');
   const [adminLoggedIn, setAdminLoggedIn] = useState(() => sessionStorage.getItem('somnera-admin') === 'true');
+
+  useEffect(() => {
+
+  let cancelled = false;
+
+
+  const loadCatalog =
+    async () => {
+
+      try {
+
+        setCatalogLoading(true);
+
+        setCatalogError('');
+
+
+        const [
+          productsData,
+          categoriesData,
+        ] =
+          await Promise.all([
+            getProductsApi(),
+            getCategoriesApi(),
+          ]);
+
+
+        if (cancelled) {
+          return;
+        }
+
+
+        setCatalog(
+          mapProductsFromApi(
+            productsData,
+          ),
+        );
+
+
+        setCategories(
+          mapCategoriesFromApi(
+            categoriesData,
+          ),
+        );
+
+
+      } catch (error) {
+
+        if (cancelled) {
+          return;
+        }
+
+
+        console.error(
+          'Unable to load product catalog:',
+          error,
+        );
+
+
+        setCatalog([]);
+
+        setCategories([]);
+
+
+        setCatalogError(
+          error.message ||
+          'Unable to load products. Please try again.',
+        );
+
+
+      } finally {
+
+        if (!cancelled) {
+
+          setCatalogLoading(
+            false,
+          );
+        }
+      }
+    };
+
+
+  loadCatalog();
+
+
+  return () => {
+    cancelled = true;
+  };
+
+}, []);
+
 
   useEffect(() => {
     const syncHash = () => setPage(pageFromHash());
     window.addEventListener('hashchange', syncHash);
 
-    const syncCatalog = () => setCatalog(getStoredProducts());
-    window.addEventListener('somnera_products_changed', syncCatalog);
-    const syncCategories = () => setCategories(getStoredCategories());
-    window.addEventListener('somnera_categories_changed', syncCategories);
-
     return () => {
       window.removeEventListener('hashchange', syncHash);
-      window.removeEventListener('somnera_products_changed', syncCatalog);
-      window.removeEventListener('somnera_categories_changed', syncCategories);
+  
     };
   }, []);
 
   if (window.location.pathname.startsWith('/admin')) {
     return (
-      <AdminPanel
-        loggedIn={adminLoggedIn}
-        onLogin={() => {
-          sessionStorage.setItem('somnera-admin', 'true');
-          setAdminLoggedIn(true);
-        }}
-        onLogout={() => {
-          sessionStorage.removeItem('somnera-admin');
-          setAdminLoggedIn(false);
-        }}
-      />
+    <AdminPanel
+  loggedIn={
+    adminLoggedIn
+  }
+  onLogin={() => {
+
+    sessionStorage.setItem(
+      'somnera-admin',
+      'true',
+    );
+
+    setAdminLoggedIn(
+      true,
+    );
+  }}
+  onLogout={() => {
+
+    sessionStorage.removeItem(
+      'somnera-admin',
+    );
+
+
+    localStorage.removeItem(
+      'somnera_auth_token',
+    );
+
+
+    localStorage.removeItem(
+      'somnera_auth_user',
+    );
+
+
+    setAdminLoggedIn(
+      false,
+    );
+  }}
+/>
     );
   }
 
@@ -258,6 +492,8 @@ export default function App() {
         setSearchQuery={setSearchQuery}
         page={page}
         setPage={setPage}
+        catalogLoading={catalogLoading}
+        catalogError={catalogError}
       />
     </AuthProvider>
   );

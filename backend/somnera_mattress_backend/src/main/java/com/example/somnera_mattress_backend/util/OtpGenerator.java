@@ -1,0 +1,20 @@
+package com.example.somnera_mattress_backend.util;
+
+import org.springframework.stereotype.Component;
+
+import java.security.SecureRandom;
+
+@Component
+public class OtpGenerator {
+
+    private final SecureRandom secureRandom =
+            new SecureRandom();
+
+    public String generateOtp() {
+
+        int number =
+                100000 + secureRandom.nextInt(900000);
+
+        return String.valueOf(number);
+    }
+}

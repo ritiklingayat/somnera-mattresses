@@ -1,0 +1,36 @@
+# ===============================
+# FRONTEND
+# ===============================
+
+**/node_modules/
+**/dist/
+
+**/.env
+**/.env.*
+!**/.env.example
+
+# ===============================
+# BACKEND
+# ===============================
+
+**/target/
+**/.idea/
+**/*.iml
+
+# Never commit Spring Boot secrets
+**/src/main/resources/application.properties
+
+# ===============================
+# IDE / OS
+# ===============================
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ===============================
+# LOGS
+# ===============================
+
+*.log

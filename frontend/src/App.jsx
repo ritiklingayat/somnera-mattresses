@@ -187,6 +187,63 @@ function MainAppContent({
 
   /*
   ==================================================
+  REFRESH BACKEND CART
+  ==================================================
+
+  Used after successful Razorpay verification.
+
+  Backend clears the cart after payment succeeds,
+  so frontend must fetch the latest empty cart.
+  */
+
+  const refreshCart =
+    async () => {
+
+      if (!isLoggedIn) {
+
+        setCart([]);
+
+        setCartTotal(0);
+
+        setCartTotalItems(0);
+
+        return;
+      }
+
+
+      try {
+
+        const response =
+          await getCartApi();
+
+
+        setCart(
+          response.items,
+        );
+
+
+        setCartTotal(
+          response.cartTotal,
+        );
+
+
+        setCartTotalItems(
+          response.totalItems,
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          'Unable to refresh cart:',
+          error,
+        );
+      }
+    };
+
+
+  /*
+  ==================================================
   LOAD BACKEND CART
   ==================================================
   */
@@ -454,14 +511,6 @@ function MainAppContent({
 
       if (!isLoggedIn) {
 
-        /*
-         * AuthContext stores this item as the
-         * pending cart item.
-         *
-         * After login, AuthProvider calls
-         * onAddToCartSuccess from App().
-         */
-
         openAuthModal(
           'login',
           item,
@@ -478,6 +527,9 @@ function MainAppContent({
       ==============================================
 
       Mattress thickness required.
+
+      Phase 5B for non-mattress products
+      remains postponed.
       */
 
       const thickness =
@@ -520,10 +572,6 @@ function MainAppContent({
               1,
           });
 
-
-        /*
-         * Backend response becomes source of truth.
-         */
 
         setCart(
           response.items,
@@ -677,11 +725,6 @@ function MainAppContent({
       quantity,
     ) => {
 
-      /*
-       * Decreasing 1 → 0
-       * removes the item.
-       */
-
       if (
         quantity <
         1
@@ -692,10 +735,6 @@ function MainAppContent({
         );
       }
 
-
-      /*
-       * Backend maximum.
-       */
 
       if (
         quantity >
@@ -1155,6 +1194,12 @@ function MainAppContent({
     );
 
 
+  /*
+  ==================================================
+  ABOUT
+  ==================================================
+  */
+
   } else if (
     page ===
     'about'
@@ -1163,13 +1208,17 @@ function MainAppContent({
     content = (
 
       <Storefront
-        view="about"
-        onNavigate={
-          changePage
-        }
-      />
+  view="about"
+  onNavigate={changePage}
+/>
     );
 
+
+  /*
+  ==================================================
+  GALLERY
+  ==================================================
+  */
 
   } else if (
     page ===
@@ -1187,6 +1236,12 @@ function MainAppContent({
     );
 
 
+  /*
+  ==================================================
+  WARRANTY
+  ==================================================
+  */
+
   } else if (
     page ===
     'warranty'
@@ -1203,6 +1258,12 @@ function MainAppContent({
     );
 
 
+  /*
+  ==================================================
+  CONTACT
+  ==================================================
+  */
+
   } else if (
     page ===
     'contact'
@@ -1215,6 +1276,12 @@ function MainAppContent({
       />
     );
 
+
+  /*
+  ==================================================
+  CART
+  ==================================================
+  */
 
   } else if (
     page ===
@@ -1257,6 +1324,12 @@ function MainAppContent({
     );
 
 
+  /*
+  ==================================================
+  CHECKOUT + RAZORPAY
+  ==================================================
+  */
+
   } else if (
     page ===
     'checkout'
@@ -1275,12 +1348,22 @@ function MainAppContent({
           cartTotal
         }
 
+        onPaymentSuccess={
+          refreshCart
+        }
+
         onNavigate={
           changePage
         }
       />
     );
 
+
+  /*
+  ==================================================
+  LEGACY ADMIN ROUTE
+  ==================================================
+  */
 
   } else if (
     page ===
@@ -1300,6 +1383,12 @@ function MainAppContent({
       />
     );
 
+
+  /*
+  ==================================================
+  HOME
+  ==================================================
+  */
 
   } else {
 
@@ -1723,15 +1812,6 @@ export default function App() {
   ==================================================
   RESUME ADD TO CART AFTER LOGIN
   ==================================================
-
-  IMPORTANT:
-
-  This function MUST exist in App()
-  because AuthProvider is also created here.
-
-  AuthContext invokes this after successful login
-  when a user originally clicked Add To Cart
-  while logged out.
   */
 
   const handleAddToCartSuccess =
@@ -1764,12 +1844,6 @@ export default function App() {
 
 
       try {
-
-        /*
-         * At this point AuthContext has already
-         * saved the user's JWT, so Axios will
-         * attach Authorization automatically.
-         */
 
         const response =
           await addToCartApi({

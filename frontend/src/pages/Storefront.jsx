@@ -11,7 +11,15 @@ import {
   siteConfig,
 } from '../config/siteConfig';
 
+import {
+  initializeCheckoutApi,
+} from '../services/checkoutService';
+
 import './Storefront.css';
+
+import {
+  verifyPaymentApi,
+} from '../services/paymentService';
 
 
 const icons = [
@@ -27,6 +35,84 @@ const icons = [
 INTRO
 ==================================================
 */
+
+function loadRazorpayScript() {
+
+  return new Promise(
+    (resolve) => {
+
+      /*
+       * Already loaded
+       */
+
+      if (
+        window.Razorpay
+      ) {
+
+        resolve(true);
+
+        return;
+      }
+
+
+      const existingScript =
+        document.querySelector(
+          'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
+        );
+
+
+      if (
+        existingScript
+      ) {
+
+        existingScript.addEventListener(
+          'load',
+          () =>
+            resolve(true),
+        );
+
+
+        existingScript.addEventListener(
+          'error',
+          () =>
+            resolve(false),
+        );
+
+
+        return;
+      }
+
+
+      const script =
+        document.createElement(
+          'script',
+        );
+
+
+      script.src =
+        'https://checkout.razorpay.com/v1/checkout.js';
+
+
+      script.async =
+        true;
+
+
+      script.onload =
+        () =>
+          resolve(true);
+
+
+      script.onerror =
+        () =>
+          resolve(false);
+
+
+      document.body.appendChild(
+        script,
+      );
+    },
+  );
+}
 
 function Intro({
   eyebrow,
@@ -1135,17 +1221,6 @@ function Contact() {
 ==================================================
 CART
 ==================================================
-
-IMPORTANT:
-
-Backend is source of truth for:
-
-unitPrice
-itemTotal
-cartTotal
-quantity
-thickness
-==================================================
 */
 
 function Cart({
@@ -1513,16 +1588,11 @@ function Cart({
 CHECKOUT
 ==================================================
 
-IMPORTANT:
-
-Phase 5:
-Display backend cart data only.
-
 Phase 6:
 POST /api/checkout
 
 Phase 7:
-Razorpay popup + payment verification
+Open Razorpay + verify payment
 ==================================================
 */
 
@@ -1530,7 +1600,545 @@ function Checkout({
   cart,
   cartTotal,
   onNavigate,
+  onPaymentSuccess,
 }) {
+
+  /*
+  ==================================================
+  FORM STATE
+  ==================================================
+  */
+
+  const [
+    form,
+    setForm,
+  ] = useState({
+
+    fullName: '',
+
+    mobile: '',
+
+    email: '',
+
+    city: '',
+
+    state: '',
+
+    pincode: '',
+
+    fullAddress: '',
+
+    paymentMethod:
+      'UPI',
+
+  });
+
+
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
+
+  const [
+    checkoutError,
+    setCheckoutError,
+  ] = useState('');
+
+
+  const [
+  paymentProcessing,
+  setPaymentProcessing,
+] = useState(false);
+
+
+const [
+  paymentSuccess,
+  setPaymentSuccess,
+] = useState(false);
+
+
+  /*
+  ==================================================
+  INPUT CHANGE
+  ==================================================
+  */
+
+  const handleChange =
+    (event) => {
+
+      const {
+        name,
+        value,
+      } =
+        event.target;
+
+
+      setForm(
+        (current) => ({
+          ...current,
+
+          [name]:
+            value,
+        }),
+      );
+
+
+      if (checkoutError) {
+
+        setCheckoutError('');
+      }
+    };
+
+
+  /*
+  ==================================================
+  FRONTEND VALIDATION
+  ==================================================
+
+  Backend validation remains authoritative.
+  This simply gives faster user feedback.
+  */
+
+  const validate =
+    () => {
+
+      const fullName =
+        form.fullName.trim();
+
+
+      const mobile =
+        form.mobile.trim();
+
+
+      const email =
+        form.email.trim();
+
+
+      const city =
+        form.city.trim();
+
+
+      const state =
+        form.state.trim();
+
+
+      const pincode =
+        form.pincode.trim();
+
+
+      const fullAddress =
+        form.fullAddress.trim();
+
+
+      if (
+        fullName.length <
+        2
+      ) {
+
+        return (
+          'Please enter your full name.'
+        );
+      }
+
+
+      if (
+        !/^[6-9][0-9]{9}$/.test(
+          mobile,
+        )
+      ) {
+
+        return (
+          'Please enter a valid 10 digit mobile number.'
+        );
+      }
+
+
+      if (
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          email,
+        )
+      ) {
+
+        return (
+          'Please enter a valid email address.'
+        );
+      }
+
+
+      if (!city) {
+
+        return (
+          'Please enter your city.'
+        );
+      }
+
+
+      if (!state) {
+
+        return (
+          'Please enter your state.'
+        );
+      }
+
+
+      if (
+        !/^[1-9][0-9]{5}$/.test(
+          pincode,
+        )
+      ) {
+
+        return (
+          'Please enter a valid 6 digit pincode.'
+        );
+      }
+
+
+      if (
+        fullAddress.length <
+        5
+      ) {
+
+        return (
+          'Please enter your complete delivery address.'
+        );
+      }
+
+
+      if (
+        ![
+          'UPI',
+          'CARD',
+          'NET_BANKING',
+          'WALLET',
+        ].includes(
+          form.paymentMethod,
+        )
+      ) {
+
+        return (
+          'Please select a payment method.'
+        );
+      }
+
+
+      return '';
+    };
+
+
+  /*
+  ==================================================
+  INITIALIZE CHECKOUT
+  ==================================================
+  */
+
+  const handleCheckout =
+  async (event) => {
+
+    event.preventDefault();
+
+
+    if (
+      cart.length ===
+      0
+    ) {
+
+      setCheckoutError(
+        'Your cart is empty.',
+      );
+
+      return;
+    }
+
+
+    const validationError =
+      validate();
+
+
+    if (
+      validationError
+    ) {
+
+      setCheckoutError(
+        validationError,
+      );
+
+      return;
+    }
+
+
+    try {
+
+      setSubmitting(
+        true,
+      );
+
+
+      setCheckoutError('');
+
+
+      setPaymentSuccess(
+        false,
+      );
+
+
+      /*
+      ==============================================
+      CREATE INTERNAL ORDER + RAZORPAY ORDER
+      ==============================================
+      */
+
+      const result =
+        await initializeCheckoutApi(
+          form,
+        );
+
+
+      if (
+        !result?.orderId ||
+        !result?.razorpayOrderId ||
+        !result?.razorpayKeyId ||
+        !result?.amountInPaise
+      ) {
+
+        throw new Error(
+          'Invalid checkout response from server.',
+        );
+      }
+
+
+      /*
+      ==============================================
+      LOAD RAZORPAY SDK
+      ==============================================
+      */
+
+      const razorpayLoaded =
+        await loadRazorpayScript();
+
+
+      if (
+        !razorpayLoaded
+      ) {
+
+        throw new Error(
+          'Unable to load Razorpay. Please check your internet connection and try again.',
+        );
+      }
+
+
+      /*
+      ==============================================
+      RAZORPAY OPTIONS
+      ==============================================
+      */
+
+      const options = {
+
+        key:
+          result.razorpayKeyId,
+
+
+        amount:
+          result.amountInPaise,
+
+
+        currency:
+          result.currency ||
+          'INR',
+
+
+        name:
+          'Somnera Mattresses',
+
+
+        description:
+          `Order #${result.orderId}`,
+
+
+        order_id:
+          result.razorpayOrderId,
+
+
+        handler:
+          async (
+            razorpayResponse,
+          ) => {
+
+            try {
+
+              setPaymentProcessing(
+                true,
+              );
+
+
+              setCheckoutError('');
+
+
+              const verification =
+                await verifyPaymentApi({
+
+                  orderId:
+                    result.orderId,
+
+                  razorpayOrderId:
+                    razorpayResponse
+                      .razorpay_order_id,
+
+                  razorpayPaymentId:
+                    razorpayResponse
+                      .razorpay_payment_id,
+
+                  razorpaySignature:
+                    razorpayResponse
+                      .razorpay_signature,
+                });
+
+
+              console.log(
+                'Payment verification:',
+                verification,
+              );
+
+
+              setPaymentSuccess(
+                true,
+              );
+
+
+              await onPaymentSuccess?.();
+
+
+              window.setTimeout(
+                () => {
+
+                  onNavigate?.(
+                    'orders',
+                  );
+                },
+                1200,
+              );
+
+
+            } catch (error) {
+
+              console.error(
+                'Payment verification failed:',
+                error,
+              );
+
+
+              setCheckoutError(
+                error.message ||
+                'Payment verification failed. Please contact support if the amount was deducted.',
+              );
+
+
+            } finally {
+
+              setPaymentProcessing(
+                false,
+              );
+            }
+          },
+
+
+        prefill: {
+
+          name:
+            form.fullName,
+
+          email:
+            form.email,
+
+          contact:
+            form.mobile,
+        },
+
+
+        notes: {
+
+          internalOrderId:
+            String(
+              result.orderId,
+            ),
+        },
+
+
+        modal: {
+
+          ondismiss:
+            () => {
+
+              setCheckoutError(
+                'Payment was cancelled. Your order is still pending payment.',
+              );
+            },
+        },
+      };
+
+
+      const razorpay =
+        new window.Razorpay(
+          options,
+        );
+
+
+      razorpay.on(
+        'payment.failed',
+        (
+          response,
+        ) => {
+
+          console.error(
+            'Razorpay payment failed:',
+            response?.error,
+          );
+
+
+          setCheckoutError(
+            response?.error
+              ?.description ||
+            'Payment failed. Please try again.',
+          );
+        },
+      );
+
+
+      razorpay.open();
+
+
+    } catch (error) {
+
+      setCheckoutError(
+        error.message ||
+        'Unable to initialize payment.',
+      );
+
+
+    } finally {
+
+      /*
+       * This only controls checkout initialization.
+       *
+       * Razorpay verification has its own
+       * paymentProcessing state.
+       */
+
+      setSubmitting(
+        false,
+      );
+    }
+  };
+
+
+
+
+  /*
+  ==================================================
+  UI
+  ==================================================
+  */
 
   return (
 
@@ -1547,22 +2155,7 @@ function Checkout({
 
         <form
           onSubmit={
-            (event) => {
-
-              event.preventDefault();
-
-
-              /*
-               * Temporary Phase 5 behavior only.
-               *
-               * Real checkout API will replace this
-               * during Phase 6.
-               */
-
-              alert(
-                'Checkout API integration will be completed in Phase 6.',
-              );
-            }
+            handleCheckout
           }
         >
 
@@ -1573,88 +2166,350 @@ function Checkout({
 
           <div className="form-grid">
 
-            {
-              [
-                'Full name',
-                'Mobile number',
-                'Email address',
-                'City',
-                'State',
-                'Pincode',
-              ].map(
-                (field) => (
+            <label>
 
-                  <label
-                    key={
-                      field
+              Full Name
+
+              <input
+                required
+                name="fullName"
+                value={
+                  form.fullName
+                }
+                onChange={
+                  handleChange
+                }
+                minLength="2"
+                maxLength="120"
+                autoComplete="name"
+                placeholder="Your full name"
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+            </label>
+
+
+            <label>
+
+              Mobile
+
+              <input
+                required
+                name="mobile"
+                type="tel"
+                value={
+                  form.mobile
+                }
+                onChange={
+                  (event) => {
+
+                    const value =
+                      event.target.value
+                        .replace(
+                          /\D/g,
+                          '',
+                        )
+                        .slice(
+                          0,
+                          10,
+                        );
+
+
+                    setForm(
+                      (current) => ({
+                        ...current,
+
+                        mobile:
+                          value,
+                      }),
+                    );
+
+
+                    if (
+                      checkoutError
+                    ) {
+
+                      setCheckoutError('');
                     }
-                  >
+                  }
+                }
+                inputMode="numeric"
+                maxLength="10"
+                autoComplete="tel"
+                placeholder="10 digit mobile number"
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
 
-                    {field}
+            </label>
 
-                    <input
-                      required
-                    />
 
-                  </label>
-                ),
-              )
-            }
+            <label>
+
+              Email
+
+              <input
+                required
+                name="email"
+                type="email"
+                value={
+                  form.email
+                }
+                onChange={
+                  handleChange
+                }
+                maxLength="150"
+                autoComplete="email"
+                placeholder="you@example.com"
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+            </label>
+
+
+            <label>
+
+              City
+
+              <input
+                required
+                name="city"
+                value={
+                  form.city
+                }
+                onChange={
+                  handleChange
+                }
+                maxLength="100"
+                autoComplete="address-level2"
+                placeholder="City"
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+            </label>
+
+
+            <label>
+
+              State
+
+              <input
+                required
+                name="state"
+                value={
+                  form.state
+                }
+                onChange={
+                  handleChange
+                }
+                maxLength="100"
+                autoComplete="address-level1"
+                placeholder="State"
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+            </label>
+
+
+            <label>
+
+              Pincode
+
+              <input
+                required
+                name="pincode"
+                value={
+                  form.pincode
+                }
+                onChange={
+                  (event) => {
+
+                    const value =
+                      event.target.value
+                        .replace(
+                          /\D/g,
+                          '',
+                        )
+                        .slice(
+                          0,
+                          6,
+                        );
+
+
+                    setForm(
+                      (current) => ({
+                        ...current,
+
+                        pincode:
+                          value,
+                      }),
+                    );
+
+
+                    if (
+                      checkoutError
+                    ) {
+
+                      setCheckoutError('');
+                    }
+                  }
+                }
+                inputMode="numeric"
+                maxLength="6"
+                autoComplete="postal-code"
+                placeholder="6 digit pincode"
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+            </label>
 
           </div>
 
 
           <label>
 
-            Full address
+            Full Address
 
             <textarea
               required
+              name="fullAddress"
+              value={
+                form.fullAddress
+              }
+              onChange={
+                handleChange
+              }
               rows="3"
+              minLength="5"
+              maxLength="500"
+              autoComplete="street-address"
+              placeholder="House / Flat, Street, Area, Landmark"
+              disabled={
+                submitting
+              }
             />
 
           </label>
 
 
           <h2>
-            Payment method
+            Payment Method
           </h2>
 
 
           <div className="payment-options">
 
-            {
-              [
-                'UPI',
-                'Credit / Debit Card',
-                'Net Banking',
-                'Wallet',
-              ].map(
-                (paymentMethod) => (
+            <label>
 
-                  <label
-                    key={
-                      paymentMethod
-                    }
-                  >
+              <input
+                name="paymentMethod"
+                type="radio"
+                value="UPI"
+                checked={
+                  form.paymentMethod ===
+                  'UPI'
+                }
+                onChange={
+                  handleChange
+                }
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
 
-                    <input
-                      name="payment"
-                      type="radio"
-                      defaultChecked={
-                        paymentMethod ===
-                        'UPI'
-                      }
-                    />
+              UPI
 
-                    {
-                      paymentMethod
-                    }
+            </label>
 
-                  </label>
-                ),
-              )
-            }
+
+            <label>
+
+              <input
+                name="paymentMethod"
+                type="radio"
+                value="CARD"
+                checked={
+                  form.paymentMethod ===
+                  'CARD'
+                }
+                onChange={
+                  handleChange
+                }
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+              Credit / Debit Card
+
+            </label>
+
+
+            <label>
+
+              <input
+                name="paymentMethod"
+                type="radio"
+                value="NET_BANKING"
+                checked={
+                  form.paymentMethod ===
+                  'NET_BANKING'
+                }
+                onChange={
+                  handleChange
+                }
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+              Net Banking
+
+            </label>
+
+
+            <label>
+
+              <input
+                name="paymentMethod"
+                type="radio"
+                value="WALLET"
+                checked={
+                  form.paymentMethod ===
+                  'WALLET'
+                }
+                onChange={
+                  handleChange
+                }
+                disabled={
+                  submitting ||
+                  paymentProcessing
+                }
+              />
+
+              Wallet
+
+            </label>
 
           </div>
 
@@ -1664,11 +2519,95 @@ function Checkout({
           </p>
 
 
-          <button className="button button-primary">
+          {
+            checkoutError && (
 
-            Pay
+              <p
+                role="alert"
+                style={{
+                  color:
+                    '#b42318',
+
+                  marginBottom:
+                    '16px',
+                }}
+              >
+
+                {
+                  checkoutError
+                }
+
+              </p>
+            )
+          }
+
+
+          {
+            paymentSuccess && (
+
+              <div
+                style={{
+                  padding:
+                    '16px',
+
+                  marginBottom:
+                    '18px',
+
+                  border:
+                    '1px solid #bbf7d0',
+
+                  borderRadius:
+                    '10px',
+
+                  background:
+                    '#f0fdf4',
+                }}
+              >
+
+                <strong>
+                  Payment successful!
+                </strong>
+
+
+                <p
+                  style={{
+                    margin:
+                      '6px 0 0',
+                  }}
+                >
+                  Your order has been confirmed.
+                </p>
+
+              </div>
+            )
+          }
+
+
+          <button
+  type="submit"
+  className="button button-primary"
+  disabled={
+    submitting ||
+    paymentProcessing ||
+    paymentSuccess ||
+    !cart.length
+  }
+>
+
+            {
+  paymentProcessing
+    ? 'Verifying payment...'
+
+    : submitting
+      ? 'Preparing secure payment...'
+
+      : paymentSuccess
+        ? 'Payment Successful'
+
+        : (
+          <>
+            Pay Securely
             {' '}
-
             ₹
             {
               Number(
@@ -1678,6 +2617,9 @@ function Checkout({
                 'en-IN',
               )
             }
+          </>
+        )
+}
 
           </button>
 
@@ -1713,20 +2655,26 @@ function Checkout({
                       item.quantity
                     }
 
-                    <small
-                      style={{
-                        display:
-                          'block',
-                      }}
-                    >
 
-                      {
-                        item.thickness
-                      }
+                    {
+                      item.thickness && (
 
-                      &quot; thickness
+                        <small
+                          style={{
+                            display:
+                              'block',
+                          }}
+                        >
 
-                    </small>
+                          {
+                            item.thickness
+                          }
+
+                          &quot; thickness
+
+                        </small>
+                      )
+                    }
 
                   </span>
 
@@ -1774,6 +2722,11 @@ function Checkout({
 
           </h3>
 
+
+          <small>
+            Final payment amount is verified and calculated by the Somnera server.
+          </small>
+
         </aside>
 
       </section>
@@ -1786,15 +2739,6 @@ function Checkout({
 /*
 ==================================================
 OLD STOREFRONT ADMIN
-==================================================
-
-This is legacy UI.
-
-The real admin integration now lives under
-/admin from Phase 3B.
-
-We preserve this code for now and clean it
-during Phase 11.
 ==================================================
 */
 
@@ -2068,6 +3012,8 @@ export default function Storefront({
 
   onNavigate,
 
+  onPaymentSuccess,
+
   setProducts,
 }) {
 
@@ -2077,6 +3023,7 @@ export default function Storefront({
   ) {
 
     return (
+
       <Products
         products={
           products
@@ -2106,6 +3053,7 @@ export default function Storefront({
   ) {
 
     return (
+
       <Gallery
         products={
           products
@@ -2121,6 +3069,7 @@ export default function Storefront({
   ) {
 
     return (
+
       <Warranty
         onNavigate={
           onNavigate
@@ -2147,25 +3096,32 @@ export default function Storefront({
   ) {
 
     return (
+
       <Cart
         cart={
           cart
         }
+
         cartTotal={
           cartTotal
         }
+
         cartLoading={
           cartLoading
         }
+
         updateQuantity={
           updateQuantity
         }
+
         removeCartItem={
           removeCartItem
         }
+
         clearCart={
           clearCart
         }
+
         onNavigate={
           onNavigate
         }
@@ -2180,13 +3136,20 @@ export default function Storefront({
   ) {
 
     return (
+
       <Checkout
         cart={
           cart
         }
+
         cartTotal={
           cartTotal
         }
+
+        onPaymentSuccess={
+          onPaymentSuccess
+        }
+
         onNavigate={
           onNavigate
         }
@@ -2196,6 +3159,7 @@ export default function Storefront({
 
 
   return (
+
     <Admin
       products={
         products

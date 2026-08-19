@@ -1,11 +1,38 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import logo from '../../assets/images/somnera-logo.jpeg';
-import { AccountDropdown, useAuth } from '../Account';
-import { MattressesMegaMenu, PillowsMegaMenu, SleepAdviceDropdown } from './MegaMenu';
-import { getStoredWishlist } from '../../utils/wishlistStorage';
-import { getMinProductPrice } from '../../utils/productFilterUtils';
-import { getPrice } from '../../data/productsData';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
+
+import logo
+  from '../../assets/images/somnera-logo.jpeg';
+
+import {
+  AccountDropdown,
+  useAuth,
+} from '../Account';
+
+import {
+  MattressesMegaMenu,
+  PillowsMegaMenu,
+  SleepAdviceDropdown,
+} from './MegaMenu';
+
+import {
+  getWishlistApi,
+} from '../../services/wishlistService';
+
+import {
+  getMinProductPrice,
+} from '../../utils/productFilterUtils';
+
+import {
+  getPrice,
+} from '../../data/productsData';
+
 import './Header.css';
+
 
 export default function Header({
   cartCount = 0,
@@ -15,252 +42,777 @@ export default function Header({
   searchQuery = '',
   onSearch,
 }) {
-  const { isLoggedIn, user, openAuthModal } = useAuth();
-  const [activeMegaMenu, setActiveMegaMenu] = useState(null); // 'mattresses' | 'pillows' | 'advice' | null
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [mobileAccordion, setMobileAccordion] = useState(null); // 'mattresses' | 'pillows' | 'advice' | null
-  const [showSearchPopover, setShowSearchPopover] = useState(false);
-  const [wishlistCount, setWishlistCount] = useState(0);
 
-  const headerRef = useRef(null);
-  const searchContainerRef = useRef(null);
+  const {
+    isLoggedIn,
+    user,
+    openAuthModal,
+  } = useAuth();
 
-  // Sync Wishlist Count
-  const syncWishlistCount = () => {
-    if (isLoggedIn && user) {
-      const items = getStoredWishlist(user);
-      setWishlistCount(items.length);
-    } else {
-      setWishlistCount(0);
-    }
-  };
+
+  const [
+    activeMegaMenu,
+    setActiveMegaMenu,
+  ] = useState(null);
+
+
+  const [
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
+  ] = useState(false);
+
+
+  const [
+    mobileAccordion,
+    setMobileAccordion,
+  ] = useState(null);
+
+
+  const [
+    showSearchPopover,
+    setShowSearchPopover,
+  ] = useState(false);
+
+
+  const [
+    wishlistCount,
+    setWishlistCount,
+  ] = useState(0);
+
+
+  const headerRef =
+    useRef(null);
+
+
+  const searchContainerRef =
+    useRef(null);
+
+
+  /*
+  ==================================================
+  WISHLIST COUNT
+  ==================================================
+
+  Wishlist count now comes from backend.
+
+  GET /api/wishlist
+
+  No localStorage wishlist is used.
+  */
 
   useEffect(() => {
-    syncWishlistCount();
 
-    const handleWishlistChange = () => syncWishlistCount();
-    window.addEventListener('somnera_wishlist_changed', handleWishlistChange);
-    return () => window.removeEventListener('somnera_wishlist_changed', handleWishlistChange);
-  }, [user, isLoggedIn]);
+    let cancelled = false;
 
-  // Close megamenu and search popover on click outside
+
+    const loadWishlistCount =
+      async () => {
+
+        if (!isLoggedIn) {
+
+          if (!cancelled) {
+            setWishlistCount(0);
+          }
+
+          return;
+        }
+
+
+        try {
+
+          const response =
+            await getWishlistApi();
+
+
+          if (!cancelled) {
+
+            setWishlistCount(
+              Number(
+                response.totalItems ||
+                0,
+              ),
+            );
+          }
+
+
+        } catch (error) {
+
+          console.error(
+            'Unable to load wishlist count:',
+            error,
+          );
+
+
+          if (!cancelled) {
+            setWishlistCount(0);
+          }
+        }
+      };
+
+
+    loadWishlistCount();
+
+
+    /*
+     * Heart buttons and WishlistPage
+     * dispatch this event whenever the
+     * backend wishlist changes.
+     */
+
+    const handleWishlistChange =
+      () => {
+
+        loadWishlistCount();
+      };
+
+
+    window.addEventListener(
+      'somnera:wishlist-changed',
+      handleWishlistChange,
+    );
+
+
+    return () => {
+
+      cancelled = true;
+
+
+      window.removeEventListener(
+        'somnera:wishlist-changed',
+        handleWishlistChange,
+      );
+    };
+
+  }, [
+    isLoggedIn,
+  ]);
+
+
+  /*
+  ==================================================
+  CLICK OUTSIDE
+  ==================================================
+  */
+
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (headerRef.current && !headerRef.current.contains(event.target)) {
+
+    function handleClickOutside(
+      event,
+    ) {
+
+      if (
+        headerRef.current &&
+        !headerRef.current.contains(
+          event.target,
+        )
+      ) {
+
         setActiveMegaMenu(null);
       }
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setShowSearchPopover(false);
+
+
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(
+          event.target,
+        )
+      ) {
+
+        setShowSearchPopover(
+          false,
+        );
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+
+    document.addEventListener(
+      'mousedown',
+      handleClickOutside,
+    );
+
+
+    return () => {
+
+      document.removeEventListener(
+        'mousedown',
+        handleClickOutside,
+      );
+    };
+
   }, []);
 
-  const handleNav = (href) => {
-    setActiveMegaMenu(null);
-    setMobileDrawerOpen(false);
-    setShowSearchPopover(false);
-    if (onNavigate) {
-      onNavigate(href);
-    } else {
-      window.location.hash = href;
-    }
-  };
 
-  const toggleAccordion = (section) => {
-    setMobileAccordion(mobileAccordion === section ? null : section);
-  };
+  /*
+  ==================================================
+  NAVIGATION
+  ==================================================
+  */
 
-  // Search filter results
-  const searchResults = useMemo(() => {
-    if (!searchQuery || !searchQuery.trim()) return [];
-    const lower = searchQuery.toLowerCase().trim();
-    return catalog.filter(
-      (p) =>
-        p.name.toLowerCase().includes(lower) ||
-        (p.description && p.description.toLowerCase().includes(lower)) ||
-        (p.eyebrow && p.eyebrow.toLowerCase().includes(lower)) ||
-        (p.category && p.category.toLowerCase().includes(lower)) ||
-        (p.firmness && p.firmness.toLowerCase().includes(lower)) ||
-        (Array.isArray(p.materials) && p.materials.some((m) => m.toLowerCase().includes(lower))) ||
-        (Array.isArray(p.needs) && p.needs.some((n) => n.toLowerCase().includes(lower))) ||
-        (Array.isArray(p.tech) && p.tech.some((t) => t.toLowerCase().includes(lower))) ||
-        (Array.isArray(p.feels) && p.feels.some((f) => f.toLowerCase().includes(lower)))
-    );
-  }, [catalog, searchQuery]);
+  const handleNav =
+    (href) => {
 
-  const handleSearchSubmit = (e) => {
-    if (e.key === 'Enter') {
+      setActiveMegaMenu(null);
+
+      setMobileDrawerOpen(false);
+
       setShowSearchPopover(false);
-      handleNav('mattresses');
-    }
-  };
+
+
+      if (onNavigate) {
+
+        onNavigate(href);
+
+      } else {
+
+        window.location.hash =
+          href;
+      }
+    };
+
+
+  const toggleAccordion =
+    (section) => {
+
+      setMobileAccordion(
+        mobileAccordion ===
+          section
+          ? null
+          : section,
+      );
+    };
+
+
+  /*
+  ==================================================
+  SEARCH
+  ==================================================
+  */
+
+  const searchResults =
+    useMemo(() => {
+
+      if (
+        !searchQuery ||
+        !searchQuery.trim()
+      ) {
+
+        return [];
+      }
+
+
+      const lower =
+        searchQuery
+          .toLowerCase()
+          .trim();
+
+
+      return catalog.filter(
+        (product) =>
+
+          product.name
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.description
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.eyebrow
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.category
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.firmness
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          (
+            Array.isArray(
+              product.materials,
+            ) &&
+            product.materials.some(
+              (material) =>
+                material
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ) ||
+
+          (
+            Array.isArray(
+              product.needs,
+            ) &&
+            product.needs.some(
+              (need) =>
+                need
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ) ||
+
+          (
+            Array.isArray(
+              product.tech,
+            ) &&
+            product.tech.some(
+              (tech) =>
+                tech
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ) ||
+
+          (
+            Array.isArray(
+              product.feels,
+            ) &&
+            product.feels.some(
+              (feel) =>
+                feel
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ),
+      );
+
+    }, [
+      catalog,
+      searchQuery,
+    ]);
+
+
+  const handleSearchSubmit =
+    (event) => {
+
+      if (
+        event.key ===
+        'Enter'
+      ) {
+
+        setShowSearchPopover(
+          false,
+        );
+
+        handleNav(
+          'mattresses',
+        );
+      }
+    };
+
 
   return (
+
     <>
-      <header className="somnera-header" ref={headerRef}>
+
+      <header
+        className="somnera-header"
+        ref={headerRef}
+      >
+
         <div className="header-container container">
+
           {/* Brand Logo */}
+
           <a
             className="brand-logo"
             href="#home"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNav('home');
-            }}
+            onClick={
+              (event) => {
+
+                event.preventDefault();
+
+                handleNav(
+                  'home',
+                );
+              }
+            }
             aria-label="Somnera Home"
           >
-            <img src={logo} alt="Somnera Luxury Mattresses" />
+
+            <img
+              src={logo}
+              alt="Somnera Luxury Mattresses"
+            />
+
           </a>
 
-          {/* Desktop Navigation Links */}
+
+          {/* Desktop Navigation */}
+
           <nav className="desktop-nav">
-            {/* Mattresses + MegaMenu */}
+
+            {/* Mattresses */}
+
             <div
-              className={`nav-item ${activeMegaMenu === 'mattresses' ? 'active' : ''}`}
-              onMouseEnter={() => setActiveMegaMenu('mattresses')}
-              onMouseLeave={() => setActiveMegaMenu(null)}
+              className={
+                `nav-item ${
+                  activeMegaMenu ===
+                  'mattresses'
+                    ? 'active'
+                    : ''
+                }`
+              }
+              onMouseEnter={
+                () =>
+                  setActiveMegaMenu(
+                    'mattresses',
+                  )
+              }
+              onMouseLeave={
+                () =>
+                  setActiveMegaMenu(
+                    null,
+                  )
+              }
             >
+
               <a
                 href="#mattresses"
                 className="nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('mattresses');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'mattresses',
+                    );
+                  }
+                }
               >
-                Mattresses <span className="caret">▾</span>
+
+                Mattresses
+
+                <span className="caret">
+                  ▾
+                </span>
+
               </a>
-              {activeMegaMenu === 'mattresses' && (
-                <MattressesMegaMenu
-                  categories={categories}
-                  onClose={() => setActiveMegaMenu(null)}
-                  onNavigate={handleNav}
-                  onMouseEnter={() => setActiveMegaMenu('mattresses')}
-                  onMouseLeave={() => setActiveMegaMenu(null)}
-                />
-              )}
+
+
+              {
+                activeMegaMenu ===
+                  'mattresses' && (
+
+                  <MattressesMegaMenu
+                    categories={
+                      categories
+                    }
+                    onClose={
+                      () =>
+                        setActiveMegaMenu(
+                          null,
+                        )
+                    }
+                    onNavigate={
+                      handleNav
+                    }
+                    onMouseEnter={
+                      () =>
+                        setActiveMegaMenu(
+                          'mattresses',
+                        )
+                    }
+                    onMouseLeave={
+                      () =>
+                        setActiveMegaMenu(
+                          null,
+                        )
+                    }
+                  />
+                )
+              }
+
             </div>
 
-            {/* Pillows & Accessories + MegaMenu */}
+
+            {/* Pillows */}
+
             <div
-              className={`nav-item ${activeMegaMenu === 'pillows' ? 'active' : ''}`}
-              onMouseEnter={() => setActiveMegaMenu('pillows')}
-              onMouseLeave={() => setActiveMegaMenu(null)}
+              className={
+                `nav-item ${
+                  activeMegaMenu ===
+                  'pillows'
+                    ? 'active'
+                    : ''
+                }`
+              }
+              onMouseEnter={
+                () =>
+                  setActiveMegaMenu(
+                    'pillows',
+                  )
+              }
+              onMouseLeave={
+                () =>
+                  setActiveMegaMenu(
+                    null,
+                  )
+              }
             >
+
               <a
                 href="#pillows-protectors"
                 className="nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('pillows-protectors');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'pillows-protectors',
+                    );
+                  }
+                }
               >
+
                 <span className="pillows-nav-label">
-                  <span>Pillows</span>
-                  <span>& Accessories</span>
+
+                  <span>
+                    Pillows
+                  </span>
+
+                  <span>
+                    & Accessories
+                  </span>
+
                 </span>
-                <span className="caret">▾</span>
+
+
+                <span className="caret">
+                  ▾
+                </span>
+
               </a>
-              {activeMegaMenu === 'pillows' && (
-                <PillowsMegaMenu
-                  onClose={() => setActiveMegaMenu(null)}
-                  onNavigate={handleNav}
-                  onMouseEnter={() => setActiveMegaMenu('pillows')}
-                  onMouseLeave={() => setActiveMegaMenu(null)}
-                />
-              )}
+
+
+              {
+                activeMegaMenu ===
+                  'pillows' && (
+
+                  <PillowsMegaMenu
+                    onClose={
+                      () =>
+                        setActiveMegaMenu(
+                          null,
+                        )
+                    }
+                    onNavigate={
+                      handleNav
+                    }
+                    onMouseEnter={
+                      () =>
+                        setActiveMegaMenu(
+                          'pillows',
+                        )
+                    }
+                    onMouseLeave={
+                      () =>
+                        setActiveMegaMenu(
+                          null,
+                        )
+                    }
+                  />
+                )
+              }
+
             </div>
 
-            {/* Sofa cum Bed */}
+
             <div className="nav-item">
+
               <a
                 href="#sofa-cum-bed"
                 className="nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('sofa-cum-bed');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'sofa-cum-bed',
+                    );
+                  }
+                }
               >
                 Sofa cum Bed
               </a>
+
             </div>
 
-            {/* Showrooms */}
+
             <div className="nav-item">
+
               <a
                 href="#find-showroom"
                 className="nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('find-showroom');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'find-showroom',
+                    );
+                  }
+                }
               >
                 Showrooms
               </a>
+
             </div>
 
-            {/* Offers Link with Pulse Badge */}
+
             <div className="nav-item">
+
               <a
                 href="#offers"
                 className="nav-link offer-badge-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('offers');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'offers',
+                    );
+                  }
+                }
               >
-                <span className="offer-pulse-dot"></span> Offers
+
+                <span className="offer-pulse-dot" />
+
+                Offers
+
               </a>
+
             </div>
 
-            {/* Sleep Advice Dropdown */}
+
+            {/* Sleep Advice */}
+
             <div
-              className={`nav-item ${activeMegaMenu === 'advice' ? 'active' : ''}`}
-              onMouseEnter={() => setActiveMegaMenu('advice')}
-              onMouseLeave={() => setActiveMegaMenu(null)}
+              className={
+                `nav-item ${
+                  activeMegaMenu ===
+                  'advice'
+                    ? 'active'
+                    : ''
+                }`
+              }
+              onMouseEnter={
+                () =>
+                  setActiveMegaMenu(
+                    'advice',
+                  )
+              }
+              onMouseLeave={
+                () =>
+                  setActiveMegaMenu(
+                    null,
+                  )
+              }
             >
+
               <a
                 href="#sleep-advice"
                 className="nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('sleep-advice');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'sleep-advice',
+                    );
+                  }
+                }
               >
-                Sleep Guide <span className="caret">▾</span>
+
+                Sleep Guide
+
+                <span className="caret">
+                  ▾
+                </span>
+
               </a>
-              {activeMegaMenu === 'advice' && (
-                <SleepAdviceDropdown
-                  onClose={() => setActiveMegaMenu(null)}
-                  onNavigate={handleNav}
-                  onMouseEnter={() => setActiveMegaMenu('advice')}
-                  onMouseLeave={() => setActiveMegaMenu(null)}
-                />
-              )}
+
+
+              {
+                activeMegaMenu ===
+                  'advice' && (
+
+                  <SleepAdviceDropdown
+                    onClose={
+                      () =>
+                        setActiveMegaMenu(
+                          null,
+                        )
+                    }
+                    onNavigate={
+                      handleNav
+                    }
+                    onMouseEnter={
+                      () =>
+                        setActiveMegaMenu(
+                          'advice',
+                        )
+                    }
+                    onMouseLeave={
+                      () =>
+                        setActiveMegaMenu(
+                          null,
+                        )
+                    }
+                  />
+                )
+              }
+
             </div>
 
-            {/* Distributor (Placed immediately after Sleep Guide) */}
+
             <div className="nav-item">
+
               <a
                 href="#distributor"
                 className="nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('distributor');
-                }}
+                onClick={
+                  (event) => {
+
+                    event.preventDefault();
+
+                    handleNav(
+                      'distributor',
+                    );
+                  }
+                }
               >
                 Distributor
               </a>
+
             </div>
+
           </nav>
 
-          {/* Right Header Controls (Search, Cart, Wishlist, Account) */}
+
+          {/* Header actions */}
+
           <div className="header-right-actions">
-            {/* Search Box + Live Suggestions Popover */}
-            <div className="header-search-container" ref={searchContainerRef}>
+
+            {/* Search */}
+
+            <div
+              className="header-search-container"
+              ref={
+                searchContainerRef
+              }
+            >
+
               <div className="header-search-bar">
+
                 <svg
                   width="15"
                   height="15"
@@ -271,90 +823,251 @@ export default function Header({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+
+                  <circle
+                    cx="11"
+                    cy="11"
+                    r="8"
+                  />
+
+                  <line
+                    x1="21"
+                    y1="21"
+                    x2="16.65"
+                    y2="16.65"
+                  />
+
                 </svg>
+
+
                 <input
                   type="text"
                   placeholder="Search Products"
-                  value={searchQuery || ''}
-                  onFocus={() => setShowSearchPopover(true)}
-                  onChange={(e) => {
-                    onSearch?.(e.target.value);
-                    setShowSearchPopover(true);
-                  }}
-                  onKeyDown={handleSearchSubmit}
+                  value={
+                    searchQuery ||
+                    ''
+                  }
+                  onFocus={
+                    () =>
+                      setShowSearchPopover(
+                        true,
+                      )
+                  }
+                  onChange={
+                    (event) => {
+
+                      onSearch?.(
+                        event.target.value,
+                      );
+
+                      setShowSearchPopover(
+                        true,
+                      );
+                    }
+                  }
+                  onKeyDown={
+                    handleSearchSubmit
+                  }
                 />
-                {searchQuery && (
-                  <button
-                    className="search-clear-btn"
-                    onClick={() => {
-                      onSearch?.('');
-                      setShowSearchPopover(false);
-                    }}
-                    aria-label="Clear search"
-                  >
-                    ✕
-                  </button>
-                )}
+
+
+                {
+                  searchQuery && (
+
+                    <button
+                      className="search-clear-btn"
+                      onClick={
+                        () => {
+
+                          onSearch?.('');
+
+                          setShowSearchPopover(
+                            false,
+                          );
+                        }
+                      }
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )
+                }
+
               </div>
 
-              {/* Suggestions Popover */}
-              {showSearchPopover && searchQuery && searchQuery.trim() !== '' && (
-                <div className="search-suggestions-popover">
-                  <div className="search-popover-header">
-                    Matching Products ({searchResults.length})
-                  </div>
-                  {searchResults.length > 0 ? (
-                    <div className="search-suggestions-list">
-                      {searchResults.slice(0, 6).map((item) => {
-                        const thicknessKeys = Object.keys(item.prices || {});
-                        const defaultThickness = thicknessKeys.length > 0 ? thicknessKeys[0] : '6';
-                        const itemPrice =
-                          getPrice(item, '72x60', defaultThickness) ||
-                          getMinProductPrice(item) ||
-                          item.price ||
-                          0;
 
-                        return (
-                          <div
-                            key={item.id}
-                            className="suggestion-item"
-                            onClick={() => handleNav(`product/${item.id}`)}
-                          >
-                            <img src={item.image} alt={item.name} className="suggestion-thumb" />
-                            <div className="suggestion-info">
-                              <span className="suggestion-title">{item.name}</span>
-                              <span className="suggestion-meta">
-                                {item.category || item.eyebrow}
-                              </span>
-                            </div>
-                            {itemPrice > 0 && (
-                              <span className="suggestion-price">
-                                ₹{itemPrice.toLocaleString('en-IN')}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
+              {
+                showSearchPopover &&
+                searchQuery &&
+                searchQuery.trim() !==
+                  '' && (
+
+                  <div className="search-suggestions-popover">
+
+                    <div className="search-popover-header">
+
+                      Matching Products
+                      {' '}
+                      (
+                      {
+                        searchResults.length
+                      }
+                      )
+
                     </div>
-                  ) : (
-                    <div className="search-no-results">No products found</div>
-                  )}
-                </div>
-              )}
+
+
+                    {
+                      searchResults.length >
+                      0
+                        ? (
+
+                          <div className="search-suggestions-list">
+
+                            {
+                              searchResults
+                                .slice(
+                                  0,
+                                  6,
+                                )
+                                .map(
+                                  (item) => {
+
+                                    const thicknessKeys =
+                                      Object.keys(
+                                        item.prices ||
+                                          {},
+                                      );
+
+
+                                    const defaultThickness =
+                                      thicknessKeys.length >
+                                      0
+                                        ? thicknessKeys[0]
+                                        : '6';
+
+
+                                    const itemPrice =
+                                      getPrice(
+                                        item,
+                                        '72x60',
+                                        defaultThickness,
+                                      ) ||
+                                      getMinProductPrice(
+                                        item,
+                                      ) ||
+                                      item.price ||
+                                      0;
+
+
+                                    return (
+
+                                      <div
+                                        key={
+                                          item.id
+                                        }
+                                        className="suggestion-item"
+                                        onClick={
+                                          () =>
+                                            handleNav(
+                                              `product/${item.id}`,
+                                            )
+                                        }
+                                      >
+
+                                        <img
+                                          src={
+                                            item.image
+                                          }
+                                          alt={
+                                            item.name
+                                          }
+                                          className="suggestion-thumb"
+                                        />
+
+
+                                        <div className="suggestion-info">
+
+                                          <span className="suggestion-title">
+                                            {
+                                              item.name
+                                            }
+                                          </span>
+
+
+                                          <span className="suggestion-meta">
+
+                                            {
+                                              item.category ||
+                                              item.eyebrow
+                                            }
+
+                                          </span>
+
+                                        </div>
+
+
+                                        {
+                                          itemPrice >
+                                          0 && (
+
+                                            <span className="suggestion-price">
+
+                                              ₹
+                                              {
+                                                itemPrice.toLocaleString(
+                                                  'en-IN',
+                                                )
+                                              }
+
+                                            </span>
+                                          )
+                                        }
+
+                                      </div>
+                                    );
+                                  },
+                                )
+                            }
+
+                          </div>
+                        )
+
+                        : (
+
+                          <div className="search-no-results">
+                            No products found
+                          </div>
+                        )
+                    }
+
+                  </div>
+                )
+              }
+
             </div>
 
-            {/* Cart Button */}
+
+            {/* Cart */}
+
             <a
               href="#cart"
               className="header-cart-btn"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNav('cart');
-              }}
-              aria-label={`Cart with ${cartCount} items`}
+              onClick={
+                (event) => {
+
+                  event.preventDefault();
+
+                  handleNav(
+                    'cart',
+                  );
+                }
+              }
+              aria-label={
+                `Cart with ${cartCount} items`
+              }
             >
+
               <svg
                 width="19"
                 height="19"
@@ -365,380 +1078,830 @@ export default function Header({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <path d="M16 10a4 4 0 0 1-8 0"></path>
+
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+
+                <line
+                  x1="3"
+                  y1="6"
+                  x2="21"
+                  y2="6"
+                />
+
+                <path d="M16 10a4 4 0 0 1-8 0" />
+
               </svg>
-              <span className="cart-text">Cart</span>
-              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+
+
+              <span className="cart-text">
+                Cart
+              </span>
+
+
+              {
+                cartCount >
+                0 && (
+
+                  <span className="cart-badge">
+                    {cartCount}
+                  </span>
+                )
+              }
+
             </a>
 
-            {/* Heart / Wishlist Button (Left side of Account button) */}
+
+            {/* Wishlist */}
+
             <a
               href="#wishlist"
               className="header-wishlist-btn"
-              onClick={(e) => {
-                e.preventDefault();
-                if (!isLoggedIn) {
-                  openAuthModal('login');
-                } else {
-                  handleNav('wishlist');
+              onClick={
+                (event) => {
+
+                  event.preventDefault();
+
+
+                  if (!isLoggedIn) {
+
+                    openAuthModal(
+                      'login',
+                    );
+
+                  } else {
+
+                    handleNav(
+                      'wishlist',
+                    );
+                  }
                 }
-              }}
-              aria-label={`Wishlist with ${wishlistCount} items`}
+              }
+              aria-label={
+                `Wishlist with ${wishlistCount} items`
+              }
               title="My Wishlist"
             >
+
               <svg
                 width="19"
                 height="19"
                 viewBox="0 0 24 24"
-                fill={wishlistCount > 0 ? '#ef4444' : 'none'}
-                stroke={wishlistCount > 0 ? '#ef4444' : 'currentColor'}
+                fill={
+                  wishlistCount >
+                  0
+                    ? '#ef4444'
+                    : 'none'
+                }
+                stroke={
+                  wishlistCount >
+                  0
+                    ? '#ef4444'
+                    : 'currentColor'
+                }
                 strokeWidth="2.2"
               >
+
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+
               </svg>
-              {wishlistCount > 0 && <span className="wishlist-badge-count">{wishlistCount}</span>}
+
+
+              {
+                wishlistCount >
+                0 && (
+
+                  <span className="wishlist-badge-count">
+                    {wishlistCount}
+                  </span>
+                )
+              }
+
             </a>
 
-            {/* Account Profile Dropdown */}
+
             <div className="desktop-account-wrapper">
-              <AccountDropdown onNavigate={handleNav} />
+
+              <AccountDropdown
+                onNavigate={
+                  handleNav
+                }
+              />
+
             </div>
 
-            {/* Mobile Hamburger Toggle Button */}
+
+            {/* Mobile menu button */}
+
             <button
               className="mobile-hamburger-btn"
-              onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
+              onClick={
+                () =>
+                  setMobileDrawerOpen(
+                    !mobileDrawerOpen,
+                  )
+              }
               aria-label="Toggle navigation drawer"
             >
-              {mobileDrawerOpen ? (
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              ) : (
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <line x1="3" y1="12" x2="21" y2="12"></line>
-                  <line x1="3" y1="6" x2="21" y2="6"></line>
-                  <line x1="3" y1="18" x2="21" y2="18"></line>
-                </svg>
-              )}
+
+              {
+                mobileDrawerOpen
+                  ? (
+
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+
+                      <line
+                        x1="18"
+                        y1="6"
+                        x2="6"
+                        y2="18"
+                      />
+
+                      <line
+                        x1="6"
+                        y1="6"
+                        x2="18"
+                        y2="18"
+                      />
+
+                    </svg>
+                  )
+
+                  : (
+
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+
+                      <line
+                        x1="3"
+                        y1="12"
+                        x2="21"
+                        y2="12"
+                      />
+
+                      <line
+                        x1="3"
+                        y1="6"
+                        x2="21"
+                        y2="6"
+                      />
+
+                      <line
+                        x1="3"
+                        y1="18"
+                        x2="21"
+                        y2="18"
+                      />
+
+                    </svg>
+                  )
+              }
+
             </button>
+
           </div>
+
         </div>
 
-        {/* Mobile Slide-Down Drawer Navigation */}
-        {mobileDrawerOpen && (
-          <div className="mobile-nav-drawer">
-            {/* Mobile Search Bar inside Drawer */}
-            <div className="mobile-drawer-search">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery || ''}
-                onChange={(e) => {
-                  onSearch?.(e.target.value);
-                  if (e.target.value) {
-                    handleNav('mattresses');
+
+        {/* Mobile Drawer */}
+
+        {
+          mobileDrawerOpen && (
+
+            <div className="mobile-nav-drawer">
+
+              <div className="mobile-drawer-search">
+
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+
+                  <circle
+                    cx="11"
+                    cy="11"
+                    r="8"
+                  />
+
+                  <line
+                    x1="21"
+                    y1="21"
+                    x2="16.65"
+                    y2="16.65"
+                  />
+
+                </svg>
+
+
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={
+                    searchQuery ||
+                    ''
                   }
-                }}
-              />
-            </div>
+                  onChange={
+                    (event) => {
 
-            <div className="mobile-drawer-menu">
-              {/* Home */}
-              <a
-                href="#home"
-                className="mobile-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('home');
-                }}
-              >
-                🏠 Home
-              </a>
+                      onSearch?.(
+                        event.target.value,
+                      );
 
-              {/* Mattresses Accordion */}
-              <div className="mobile-accordion">
-                <button
-                  className="mobile-accordion-header"
-                  onClick={() => toggleAccordion('mattresses')}
-                >
-                  <span>🛏️ Mattresses</span>
-                  <span
-                    className={`accordion-arrow ${mobileAccordion === 'mattresses' ? 'expanded' : ''}`}
-                  >
-                    ▾
-                  </span>
-                </button>
-                {mobileAccordion === 'mattresses' && (
-                  <div className="mobile-accordion-body">
-                    <a
-                      href="#mattresses"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('mattresses');
-                      }}
-                    >
-                      All Mattresses
-                    </a>
-                    <a
-                      href="#mattresses?collection=Orthopaedic"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('mattresses?collection=Orthopaedic');
-                      }}
-                    >
-                      Orthopaedic Mattresses
-                    </a>
-                    <a
-                      href="#mattresses?material=Natural+Latex"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('mattresses?material=Natural+Latex');
-                      }}
-                    >
-                      Natural Latex
-                    </a>
-                    <a
-                      href="#mattresses?material=Impressions+Foam"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('mattresses?material=Impressions+Foam');
-                      }}
-                    >
-                      Memory Foam
-                    </a>
-                    <a
-                      href="#mattresses?material=Pocket+Spring"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('mattresses?material=Pocket+Spring');
-                      }}
-                    >
-                      Pocket Spring
-                    </a>
-                  </div>
-                )}
-              </div>
 
-              {/* Pillows & Accessories Accordion */}
-              <div className="mobile-accordion">
-                <button
-                  className="mobile-accordion-header"
-                  onClick={() => toggleAccordion('pillows')}
-                >
-                  <span>☁️ Pillows & Accessories</span>
-                  <span
-                    className={`accordion-arrow ${mobileAccordion === 'pillows' ? 'expanded' : ''}`}
-                  >
-                    ▾
-                  </span>
-                </button>
-                {mobileAccordion === 'pillows' && (
-                  <div className="mobile-accordion-body">
-                    <a
-                      href="#pillows-protectors"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('pillows-protectors');
-                      }}
-                    >
-                      Luxury Pillows
-                    </a>
-                    <a
-                      href="#pillows-protectors"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('pillows-protectors');
-                      }}
-                    >
-                      Waterproof Mattress Protectors
-                    </a>
-                    <a
-                      href="#pillows-protectors"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('pillows-protectors');
-                      }}
-                    >
-                      Pillow Protectors
-                    </a>
-                  </div>
-                )}
-              </div>
+                      if (
+                        event.target.value
+                      ) {
 
-              {/* Sofa cum Bed */}
-              <a
-                href="#sofa-cum-bed"
-                className="mobile-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('sofa-cum-bed');
-                }}
-              >
-                🛋️ Sofa cum Bed
-              </a>
-
-              {/* Showrooms */}
-              <a
-                href="#find-showroom"
-                className="mobile-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('find-showroom');
-                }}
-              >
-                📍 Find Showroom
-              </a>
-
-              {/* Offers */}
-              <a
-                href="#offers"
-                className="mobile-link mobile-offer-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('offers');
-                }}
-              >
-                🔥 Special Offers
-              </a>
-
-              {/* Sleep Advice Accordion */}
-              <div className="mobile-accordion">
-                <button
-                  className="mobile-accordion-header"
-                  onClick={() => toggleAccordion('advice')}
-                >
-                  <span>📘 Sleep Guide</span>
-                  <span
-                    className={`accordion-arrow ${mobileAccordion === 'advice' ? 'expanded' : ''}`}
-                  >
-                    ▾
-                  </span>
-                </button>
-                {mobileAccordion === 'advice' && (
-                  <div className="mobile-accordion-body">
-                    <a
-                      href="#sleep-advice"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('sleep-advice');
-                      }}
-                    >
-                      Buying Guide
-                    </a>
-                    <a
-                      href="#sleep-advice"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('sleep-advice');
-                      }}
-                    >
-                      Firmness Selector
-                    </a>
-                    <a
-                      href="#sleep-advice"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleNav('sleep-advice');
-                      }}
-                    >
-                      Mattress Size Guide
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* Distributor Link */}
-              <a
-                href="#distributor"
-                className="mobile-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNav('distributor');
-                }}
-              >
-                🤝 Become Our Distributor
-              </a>
-
-              {/* Wishlist Link */}
-              <a
-                href="#wishlist"
-                className="mobile-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (!isLoggedIn) {
-                    setMobileDrawerOpen(false);
-                    openAuthModal('login');
-                  } else {
-                    handleNav('wishlist');
+                        handleNav(
+                          'mattresses',
+                        );
+                      }
+                    }
                   }
-                }}
-              >
-                🤍 My Wishlist {wishlistCount > 0 ? `(${wishlistCount})` : ''}
-              </a>
+                />
 
-              {/* Mobile Account CTA */}
-              <div className="mobile-account-section">
-                {isLoggedIn ? (
-                  <div className="mobile-user-card">
-                    <div className="mobile-user-avatar">
-                      {(user?.firstName || 'S').charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <strong>
-                        {user?.firstName} {user?.lastName}
-                      </strong>
-                      <small>{user?.email}</small>
-                    </div>
-                  </div>
-                ) : (
+              </div>
+
+
+              <div className="mobile-drawer-menu">
+
+                <a
+                  href="#home"
+                  className="mobile-link"
+                  onClick={
+                    (event) => {
+
+                      event.preventDefault();
+
+                      handleNav(
+                        'home',
+                      );
+                    }
+                  }
+                >
+                  🏠 Home
+                </a>
+
+
+                {/* Mattresses */}
+
+                <div className="mobile-accordion">
+
                   <button
-                    className="mobile-login-btn"
-                    onClick={() => {
-                      setMobileDrawerOpen(false);
-                      openAuthModal('login');
-                    }}
+                    className="mobile-accordion-header"
+                    onClick={
+                      () =>
+                        toggleAccordion(
+                          'mattresses',
+                        )
+                    }
                   >
-                    Login / Sign Up
+
+                    <span>
+                      🛏️ Mattresses
+                    </span>
+
+
+                    <span
+                      className={
+                        `accordion-arrow ${
+                          mobileAccordion ===
+                          'mattresses'
+                            ? 'expanded'
+                            : ''
+                        }`
+                      }
+                    >
+                      ▾
+                    </span>
+
                   </button>
-                )}
+
+
+                  {
+                    mobileAccordion ===
+                      'mattresses' && (
+
+                      <div className="mobile-accordion-body">
+
+                        <a
+                          href="#mattresses"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'mattresses',
+                              );
+                            }
+                          }
+                        >
+                          All Mattresses
+                        </a>
+
+
+                        <a
+                          href="#mattresses?collection=Orthopaedic"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'mattresses?collection=Orthopaedic',
+                              );
+                            }
+                          }
+                        >
+                          Orthopaedic Mattresses
+                        </a>
+
+
+                        <a
+                          href="#mattresses?material=Natural+Latex"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'mattresses?material=Natural+Latex',
+                              );
+                            }
+                          }
+                        >
+                          Natural Latex
+                        </a>
+
+
+                        <a
+                          href="#mattresses?material=Impressions+Foam"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'mattresses?material=Impressions+Foam',
+                              );
+                            }
+                          }
+                        >
+                          Memory Foam
+                        </a>
+
+
+                        <a
+                          href="#mattresses?material=Pocket+Spring"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'mattresses?material=Pocket+Spring',
+                              );
+                            }
+                          }
+                        >
+                          Pocket Spring
+                        </a>
+
+                      </div>
+                    )
+                  }
+
+                </div>
+
+
+                {/* Pillows */}
+
+                <div className="mobile-accordion">
+
+                  <button
+                    className="mobile-accordion-header"
+                    onClick={
+                      () =>
+                        toggleAccordion(
+                          'pillows',
+                        )
+                    }
+                  >
+
+                    <span>
+                      ☁️ Pillows & Accessories
+                    </span>
+
+
+                    <span
+                      className={
+                        `accordion-arrow ${
+                          mobileAccordion ===
+                          'pillows'
+                            ? 'expanded'
+                            : ''
+                        }`
+                      }
+                    >
+                      ▾
+                    </span>
+
+                  </button>
+
+
+                  {
+                    mobileAccordion ===
+                      'pillows' && (
+
+                      <div className="mobile-accordion-body">
+
+                        <a
+                          href="#pillows-protectors"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'pillows-protectors',
+                              );
+                            }
+                          }
+                        >
+                          Luxury Pillows
+                        </a>
+
+
+                        <a
+                          href="#pillows-protectors"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'pillows-protectors',
+                              );
+                            }
+                          }
+                        >
+                          Waterproof Mattress Protectors
+                        </a>
+
+
+                        <a
+                          href="#pillows-protectors"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'pillows-protectors',
+                              );
+                            }
+                          }
+                        >
+                          Pillow Protectors
+                        </a>
+
+                      </div>
+                    )
+                  }
+
+                </div>
+
+
+                <a
+                  href="#sofa-cum-bed"
+                  className="mobile-link"
+                  onClick={
+                    (event) => {
+
+                      event.preventDefault();
+
+                      handleNav(
+                        'sofa-cum-bed',
+                      );
+                    }
+                  }
+                >
+                  🛋️ Sofa cum Bed
+                </a>
+
+
+                <a
+                  href="#find-showroom"
+                  className="mobile-link"
+                  onClick={
+                    (event) => {
+
+                      event.preventDefault();
+
+                      handleNav(
+                        'find-showroom',
+                      );
+                    }
+                  }
+                >
+                  📍 Find Showroom
+                </a>
+
+
+                <a
+                  href="#offers"
+                  className="mobile-link mobile-offer-link"
+                  onClick={
+                    (event) => {
+
+                      event.preventDefault();
+
+                      handleNav(
+                        'offers',
+                      );
+                    }
+                  }
+                >
+                  🔥 Special Offers
+                </a>
+
+
+                {/* Sleep Advice */}
+
+                <div className="mobile-accordion">
+
+                  <button
+                    className="mobile-accordion-header"
+                    onClick={
+                      () =>
+                        toggleAccordion(
+                          'advice',
+                        )
+                    }
+                  >
+
+                    <span>
+                      📘 Sleep Guide
+                    </span>
+
+
+                    <span
+                      className={
+                        `accordion-arrow ${
+                          mobileAccordion ===
+                          'advice'
+                            ? 'expanded'
+                            : ''
+                        }`
+                      }
+                    >
+                      ▾
+                    </span>
+
+                  </button>
+
+
+                  {
+                    mobileAccordion ===
+                      'advice' && (
+
+                      <div className="mobile-accordion-body">
+
+                        <a
+                          href="#sleep-advice"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'sleep-advice',
+                              );
+                            }
+                          }
+                        >
+                          Buying Guide
+                        </a>
+
+
+                        <a
+                          href="#sleep-advice"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'sleep-advice',
+                              );
+                            }
+                          }
+                        >
+                          Firmness Selector
+                        </a>
+
+
+                        <a
+                          href="#sleep-advice"
+                          onClick={
+                            (event) => {
+
+                              event.preventDefault();
+
+                              handleNav(
+                                'sleep-advice',
+                              );
+                            }
+                          }
+                        >
+                          Mattress Size Guide
+                        </a>
+
+                      </div>
+                    )
+                  }
+
+                </div>
+
+
+                <a
+                  href="#distributor"
+                  className="mobile-link"
+                  onClick={
+                    (event) => {
+
+                      event.preventDefault();
+
+                      handleNav(
+                        'distributor',
+                      );
+                    }
+                  }
+                >
+                  🤝 Become Our Distributor
+                </a>
+
+
+                <a
+                  href="#wishlist"
+                  className="mobile-link"
+                  onClick={
+                    (event) => {
+
+                      event.preventDefault();
+
+
+                      if (!isLoggedIn) {
+
+                        setMobileDrawerOpen(
+                          false,
+                        );
+
+                        openAuthModal(
+                          'login',
+                        );
+
+                      } else {
+
+                        handleNav(
+                          'wishlist',
+                        );
+                      }
+                    }
+                  }
+                >
+
+                  🤍 My Wishlist
+
+                  {
+                    wishlistCount >
+                    0
+                      ? ` (${wishlistCount})`
+                      : ''
+                  }
+
+                </a>
+
+
+                <div className="mobile-account-section">
+
+                  {
+                    isLoggedIn
+                      ? (
+
+                        <div className="mobile-user-card">
+
+                          <div className="mobile-user-avatar">
+
+                            {
+                              (
+                                user?.firstName ||
+                                'S'
+                              )
+                                .charAt(0)
+                                .toUpperCase()
+                            }
+
+                          </div>
+
+
+                          <div>
+
+                            <strong>
+
+                              {
+                                user?.firstName
+                              }
+
+                              {' '}
+
+                              {
+                                user?.lastName
+                              }
+
+                            </strong>
+
+
+                            <small>
+                              {
+                                user?.email
+                              }
+                            </small>
+
+                          </div>
+
+                        </div>
+                      )
+
+                      : (
+
+                        <button
+                          className="mobile-login-btn"
+                          onClick={
+                            () => {
+
+                              setMobileDrawerOpen(
+                                false,
+                              );
+
+                              openAuthModal(
+                                'login',
+                              );
+                            }
+                          }
+                        >
+                          Login / Sign Up
+                        </button>
+                      )
+                  }
+
+                </div>
+
               </div>
+
             </div>
-          </div>
-        )}
+          )
+        }
+
       </header>
 
-      {/* App-Style Bottom Navigation Dock (Visible on Mobile Viewports < 768px) */}
-      <nav className="mobile-bottom-dock" aria-label="Mobile Bottom Navigation">
-        <button className="dock-item" onClick={() => handleNav('home')} aria-label="Home">
+
+      {/* Mobile bottom dock */}
+
+      <nav
+        className="mobile-bottom-dock"
+        aria-label="Mobile Bottom Navigation"
+      >
+
+        <button
+          className="dock-item"
+          onClick={
+            () =>
+              handleNav(
+                'home',
+              )
+          }
+          aria-label="Home"
+        >
+
           <svg
             width="22"
             height="22"
@@ -747,17 +1910,31 @@ export default function Header({
             stroke="currentColor"
             strokeWidth="2"
           >
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+
+            <polyline points="9 22 9 12 15 12 15 22" />
+
           </svg>
-          <span>Home</span>
+
+          <span>
+            Home
+          </span>
+
         </button>
+
 
         <button
           className="dock-item"
-          onClick={() => handleNav('mattresses')}
+          onClick={
+            () =>
+              handleNav(
+                'mattresses',
+              )
+          }
           aria-label="Shop Mattresses"
         >
+
           <svg
             width="22"
             height="22"
@@ -766,47 +1943,113 @@ export default function Header({
             stroke="currentColor"
             strokeWidth="2"
           >
-            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-            <path d="M6 8h12"></path>
-            <path d="M6 12h12"></path>
-            <path d="M6 16h8"></path>
+
+            <rect
+              x="2"
+              y="4"
+              width="20"
+              height="16"
+              rx="2"
+            />
+
+            <path d="M6 8h12" />
+
+            <path d="M6 12h12" />
+
+            <path d="M6 16h8" />
+
           </svg>
-          <span>Shop</span>
+
+          <span>
+            Shop
+          </span>
+
         </button>
+
 
         <button
           className="dock-item"
-          onClick={() => {
-            if (isLoggedIn) {
-              handleNav('wishlist');
-            } else {
-              openAuthModal('login');
+          onClick={
+            () => {
+
+              if (isLoggedIn) {
+
+                handleNav(
+                  'wishlist',
+                );
+
+              } else {
+
+                openAuthModal(
+                  'login',
+                );
+              }
             }
-          }}
+          }
           aria-label="Wishlist"
         >
+
           <div className="dock-icon-wrapper">
+
             <svg
               width="22"
               height="22"
               viewBox="0 0 24 24"
-              fill={wishlistCount > 0 ? '#ef4444' : 'none'}
-              stroke={wishlistCount > 0 ? '#ef4444' : 'currentColor'}
+              fill={
+                wishlistCount >
+                0
+                  ? '#ef4444'
+                  : 'none'
+              }
+              stroke={
+                wishlistCount >
+                0
+                  ? '#ef4444'
+                  : 'currentColor'
+              }
               strokeWidth="2"
             >
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+
             </svg>
-            {wishlistCount > 0 && <span className="dock-badge">{wishlistCount}</span>}
+
+
+            {
+              wishlistCount >
+              0 && (
+
+                <span className="dock-badge">
+                  {wishlistCount}
+                </span>
+              )
+            }
+
           </div>
-          <span>Wishlist</span>
+
+
+          <span>
+            Wishlist
+          </span>
+
         </button>
+
 
         <button
           className="dock-item dock-cart-item"
-          onClick={() => handleNav('cart')}
-          aria-label={`Cart with ${cartCount} items`}
+          onClick={
+            () =>
+              handleNav(
+                'cart',
+              )
+          }
+          aria-label={
+            `Cart with ${cartCount} items`
+          }
         >
+
           <div className="dock-icon-wrapper">
+
             <svg
               width="22"
               height="22"
@@ -815,26 +2058,63 @@ export default function Header({
               stroke="currentColor"
               strokeWidth="2"
             >
-              <path d="M6 2L3 6v14a2 2 0 0 1 2 2h14a2 2 0 0 1 2-2V6l-3-4z"></path>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <path d="M16 10a4 4 0 0 1-8 0"></path>
+
+              <path d="M6 2L3 6v14a2 2 0 0 1 2 2h14a2 2 0 0 1 2-2V6l-3-4z" />
+
+              <line
+                x1="3"
+                y1="6"
+                x2="21"
+                y2="6"
+              />
+
+              <path d="M16 10a4 4 0 0 1-8 0" />
+
             </svg>
-            {cartCount > 0 && <span className="dock-badge">{cartCount}</span>}
+
+
+            {
+              cartCount >
+              0 && (
+
+                <span className="dock-badge">
+                  {cartCount}
+                </span>
+              )
+            }
+
           </div>
-          <span>Cart</span>
+
+
+          <span>
+            Cart
+          </span>
+
         </button>
+
 
         <button
           className="dock-item"
-          onClick={() => {
-            if (isLoggedIn) {
-              handleNav('profile');
-            } else {
-              openAuthModal('login');
+          onClick={
+            () => {
+
+              if (isLoggedIn) {
+
+                handleNav(
+                  'profile',
+                );
+
+              } else {
+
+                openAuthModal(
+                  'login',
+                );
+              }
             }
-          }}
+          }
           aria-label="Account Profile"
         >
+
           <svg
             width="22"
             height="22"
@@ -843,12 +2123,32 @@ export default function Header({
             stroke="currentColor"
             strokeWidth="2"
           >
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
+
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+
+            <circle
+              cx="12"
+              cy="7"
+              r="4"
+            />
+
           </svg>
-          <span>{isLoggedIn ? 'Account' : 'Login'}</span>
+
+
+          <span>
+
+            {
+              isLoggedIn
+                ? 'Account'
+                : 'Login'
+            }
+
+          </span>
+
         </button>
+
       </nav>
+
     </>
   );
 }

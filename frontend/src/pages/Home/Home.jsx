@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { getPrice } from '../../data/productsData';
 import { useAuth } from '../../components/Account';
-import { isItemInWishlist, toggleWishlistItem } from '../../utils/wishlistStorage';
+import useWishlistStatus
+  from '../../hooks/useWishlistStatus';
 import './Home.css';
 
 /* ─── Banner slider images ─── */
@@ -29,25 +30,44 @@ const faqs = [
 ];
 
 function Card({ product, onBrowse, onAddToCart, compact = false }) {
-  const { user, isLoggedIn, openAuthModal } = useAuth();
-  const [inWishlist, setInWishlist] = useState(false);
+  
+  const {
+  isLoggedIn,
+  openAuthModal,
+} = useAuth();
 
-  useEffect(() => {
-    if (user) {
-      setInWishlist(isItemInWishlist(user, product.id));
-    } else {
-      setInWishlist(false);
-    }
-  }, [user, product.id]);
 
-  const handleWishlistToggle = (e) => {
-    e.stopPropagation();
-    if (!isLoggedIn || !user) {
-      openAuthModal('login');
-      return;
+  const {
+  inWishlist,
+  wishlistLoading,
+  toggleWishlist,
+} = useWishlistStatus({
+  productId:
+    product.id,
+
+  isLoggedIn,
+
+  openAuthModal,
+});
+
+  const handleWishlistToggle =
+  async (event) => {
+
+    event.stopPropagation();
+
+
+    try {
+
+      await toggleWishlist();
+
+
+    } catch (error) {
+
+      console.error(
+        'Wishlist update failed:',
+        error,
+      );
     }
-    const added = toggleWishlistItem(user, product);
-    setInWishlist(added);
   };
 
   const rate = Math.min(...Object.values(product.prices || { 0: 0 }));
@@ -61,6 +81,7 @@ function Card({ product, onBrowse, onAddToCart, compact = false }) {
           aria-label={`Save ${product.name}`}
           className={`heart ${inWishlist ? 'active' : ''}`}
           onClick={handleWishlistToggle}
+           disabled={ wishlistLoading}
           style={{ color: inWishlist ? '#ef4444' : 'inherit' }}
         >
           {inWishlist ? '♥' : '♡'}

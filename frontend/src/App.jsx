@@ -250,7 +250,16 @@ if (catalogError) {
   else if (page === 'distributor')
     content = <DistributorPage />;
   else if (page === 'wishlist')
-    content = <WishlistPage products={catalog} onNavigate={changePage} addToCart={handleAddToCart} />;
+    content = (
+  <WishlistPage
+    onNavigate={
+      changePage
+    }
+    addToCart={
+      handleAddToCart
+    }
+  />
+);
   else if (page === 'offers')
     content = <OffersPage onNavigate={changePage} />;
   else if (page.startsWith('product/'))

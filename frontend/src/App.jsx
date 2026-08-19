@@ -1,15 +1,39 @@
-import { useEffect, useMemo, useState } from 'react';
-import Header from './components/Header/Header';
-import Footer from './components/Footer/Footer';
-import WhatsAppButton from './components/WhatsAppButton/WhatsAppButton';
-import Home from './pages/Home';
-import Storefront from './pages/Storefront';
-import AdminPanel from './admin/AdminPanel';
-import { AuthProvider, AuthModal, useAuth } from './components/Account';
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
+import Header
+  from './components/Header/Header';
+
+import Footer
+  from './components/Footer/Footer';
+
+import WhatsAppButton
+  from './components/WhatsAppButton/WhatsAppButton';
+
+import Home
+  from './pages/Home';
+
+import Storefront
+  from './pages/Storefront';
+
+import AdminPanel
+  from './admin/AdminPanel';
+
+import {
+  AuthProvider,
+  AuthModal,
+  useAuth,
+} from './components/Account';
+
+
 import {
   getCategoriesApi,
   getProductsApi,
 } from './services/catalogService';
+
 
 import {
   mapCategoriesFromApi,
@@ -17,493 +41,1866 @@ import {
 } from './utils/catalogMapper';
 
 
+import {
+  addToCartApi,
+  clearCartApi,
+  getCartApi,
+  removeCartItemApi,
+  updateCartItemApi,
+} from './services/cartService';
 
-import { MattressesPage } from './pages/MattressesPage';
-import { PillowsProtectorsPage } from './pages/PillowsProtectorsPage';
-import { SofaCumBedPage } from './pages/SofaCumBedPage';
-import { FindShowroomPage } from './pages/FindShowroomPage';
-import { SleepAdvicePage } from './pages/SleepAdvicePage';
-import { DistributorPage } from './pages/DistributorPage';
-import { WishlistPage } from './pages/WishlistPage';
-import { OffersPage } from './pages/OffersPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import ProfilePage from './pages/Account/ProfilePage';
-import OrdersPage from './pages/Account/OrdersPage';
 
-const pageFromHash = () => {
-  const hash = (window.location.hash || '#home').replace('#', '');
-  // Clean up any query parameters from hash if present
-  const cleanHash = hash.split('?')[0];
-  if (['login', 'register', 'forgot-password', 'reset-password'].includes(cleanHash)) {
-    return 'home';
-  }
-  return cleanHash || 'home';
-};
+import {
+  MattressesPage,
+} from './pages/MattressesPage';
+
+import {
+  PillowsProtectorsPage,
+} from './pages/PillowsProtectorsPage';
+
+import {
+  SofaCumBedPage,
+} from './pages/SofaCumBedPage';
+
+import {
+  FindShowroomPage,
+} from './pages/FindShowroomPage';
+
+import {
+  SleepAdvicePage,
+} from './pages/SleepAdvicePage';
+
+import {
+  DistributorPage,
+} from './pages/DistributorPage';
+
+import {
+  WishlistPage,
+} from './pages/WishlistPage';
+
+import {
+  OffersPage,
+} from './pages/OffersPage';
+
+import ProductDetailPage
+  from './pages/ProductDetailPage';
+
+import ProfilePage
+  from './pages/Account/ProfilePage';
+
+import OrdersPage
+  from './pages/Account/OrdersPage';
+
+
+/*
+==================================================
+HASH ROUTING
+==================================================
+*/
+
+const pageFromHash =
+  () => {
+
+    const hash =
+      (
+        window.location.hash ||
+        '#home'
+      ).replace(
+        '#',
+        '',
+      );
+
+
+    const cleanHash =
+      hash.split('?')[0];
+
+
+    if (
+      [
+        'login',
+        'register',
+        'forgot-password',
+        'reset-password',
+      ].includes(
+        cleanHash,
+      )
+    ) {
+
+      return 'home';
+    }
+
+
+    return (
+      cleanHash ||
+      'home'
+    );
+  };
+
+
+/*
+==================================================
+CUSTOMER APPLICATION
+==================================================
+*/
 
 function MainAppContent({
   cart,
   setCart,
+
+  cartTotal,
+  setCartTotal,
+
+  cartTotalItems,
+  setCartTotalItems,
+
+  cartLoading,
+  setCartLoading,
+
   catalog,
   setCatalog,
+
   categories,
+
   catalogLoading,
   catalogError,
+
   searchQuery,
   setSearchQuery,
+
   page,
   setPage,
 }) {
-  const { isLoggedIn, openAuthModal, toastMessage, showToast } = useAuth();
 
-  const filteredCatalog = useMemo(() => {
-    if (!searchQuery) return catalog;
-    const lower = searchQuery.toLowerCase();
-    return catalog.filter(
-      (p) =>
-        p.name.toLowerCase().includes(lower) ||
-        (p.description && p.description.toLowerCase().includes(lower)) ||
-        (p.eyebrow && p.eyebrow.toLowerCase().includes(lower)) ||
-        (p.category && p.category.toLowerCase().includes(lower)) ||
-        (p.firmness && p.firmness.toLowerCase().includes(lower)) ||
-        (Array.isArray(p.materials) && p.materials.some((m) => m.toLowerCase().includes(lower))) ||
-        (Array.isArray(p.needs) && p.needs.some((n) => n.toLowerCase().includes(lower))) ||
-        (Array.isArray(p.tech) && p.tech.some((t) => t.toLowerCase().includes(lower))) ||
-        (Array.isArray(p.feels) && p.feels.some((f) => f.toLowerCase().includes(lower)))
-    );
-  }, [catalog, searchQuery]);
+  /*
+  ==================================================
+  AUTH
+  ==================================================
+  */
 
-  const changePage = (next) => {
-    window.location.hash = next;
-    setPage(next.split('?')[0]);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const updateCatalog = (
-  nextCatalog,
-) => {
-
-  const newProducts =
-    typeof nextCatalog ===
-      'function'
-      ? nextCatalog(catalog)
-      : nextCatalog;
+  const {
+    isLoggedIn,
+    openAuthModal,
+    toastMessage,
+    showToast,
+  } = useAuth();
 
 
-  setCatalog(
-    newProducts,
-  );
-};
-
-  const directAddToCart = (item) => {
-    setCart((current) => {
-      const index = current.findIndex(
-        (entry) => entry.id === item.id && entry.size === item.size && entry.thickness === item.thickness
-      );
-      if (index < 0) return [...current, { ...item, quantity: 1 }];
-      return current.map((entry, i) => (i === index ? { ...entry, quantity: entry.quantity + 1 } : entry));
-    });
-  };
-
-  // Requirement 4: Add to Cart -> Auth Check Flow
-  const handleAddToCart = (item) => {
-    if (isLoggedIn) {
-      directAddToCart(item);
-      showToast(`${item.name} added to cart!`);
-    } else {
-      // Prompt luxury login modal and preserve pending action
-      openAuthModal('login', item);
-    }
-  };
-
-  const updateQuantity = (index, quantity) =>
-    setCart((current) =>
-      quantity < 1 ? current.filter((_, i) => i !== index) : current.map((item, i) => (i === index ? { ...item, quantity } : item))
-    );
-
-  const cartCount = useMemo(() => cart.reduce((count, item) => count + item.quantity, 0), [cart]);
-
-  // Open modal if URL has #login, #register, etc.
-  useEffect(() => {
-    const hash = window.location.hash.replace('#', '').split('?')[0];
-    if (['login', 'register', 'forgot-password', 'reset-password'].includes(hash)) {
-      openAuthModal(hash);
-    }
-  }, []);
+  /*
+  ==================================================
+  LOAD BACKEND CART
+  ==================================================
+  */
 
   useEffect(() => {
 
-  const protectedPages = [
-    'profile',
-    'orders',
-    'checkout',
-  ];
+    let cancelled =
+      false;
 
 
-  if (
-    !isLoggedIn &&
-    protectedPages.includes(page)
-  ) {
+    const loadCart =
+      async () => {
 
-    openAuthModal('login');
+        /*
+         * Cart belongs to logged-in USER.
+         */
 
-    window.location.hash =
-      'home';
-  }
+        if (!isLoggedIn) {
 
-}, [
-  isLoggedIn,
-  page,
-]);
+          setCart([]);
 
-  if (catalogLoading) {
+          setCartTotal(0);
 
-  return (
-    <>
-      <Header
-        cartCount={cartCount}
-        categories={categories}
-        catalog={catalog}
-        onNavigate={changePage}
-        searchQuery={searchQuery}
-        onSearch={setSearchQuery}
-      />
+          setCartTotalItems(0);
 
-      <main>
-        <div
-          className="container"
-          style={{
-            padding:
-              '80px 20px',
-            textAlign:
-              'center',
-          }}
-        >
-          Loading products...
-        </div>
-      </main>
+          setCartLoading(false);
 
-      <Footer />
-
-      <WhatsAppButton />
-
-      <AuthModal />
-    </>
-  );
-}
-
-
-if (catalogError) {
-
-  return (
-    <>
-      <Header
-        cartCount={cartCount}
-        categories={categories}
-        catalog={catalog}
-        onNavigate={changePage}
-        searchQuery={searchQuery}
-        onSearch={setSearchQuery}
-      />
-
-      <main>
-        <div
-          className="container"
-          style={{
-            padding:
-              '80px 20px',
-            textAlign:
-              'center',
-          }}
-        >
-          <h2>
-            Unable to load products
-          </h2>
-
-          <p>
-            {catalogError}
-          </p>
-        </div>
-      </main>
-
-      <Footer />
-
-      <WhatsAppButton />
-
-      <AuthModal />
-    </>
-  );
-}
-
-  let content;
-  if (page === 'profile' && isLoggedIn) content = <ProfilePage />;
-  else if (page === 'orders' && isLoggedIn) content = <OrdersPage />;
-  else if (page === 'products' || page === 'mattresses')
-    content = <MattressesPage products={filteredCatalog.filter(p => !p.productSection || p.productSection === 'MATTRESS')} addToCart={handleAddToCart} />;
-  else if (page === 'pillows-protectors')
-    content = <PillowsProtectorsPage products={catalog.filter(p => p.productSection === 'PILLOWS_ACCESSORIES')} addToCart={handleAddToCart} />;
-  else if (page === 'sofa-cum-bed')
-    content = <SofaCumBedPage products={catalog.filter(p => p.productSection === 'SOFA_CUM_BED')} addToCart={handleAddToCart} />;
-  else if (page === 'find-showroom')
-    content = <FindShowroomPage />;
-  else if (page === 'sleep-advice')
-    content = <SleepAdvicePage />;
-  else if (page === 'distributor')
-    content = <DistributorPage />;
-  else if (page === 'wishlist')
-    content = (
-  <WishlistPage
-    onNavigate={
-      changePage
-    }
-    addToCart={
-      handleAddToCart
-    }
-  />
-);
-  else if (page === 'offers')
-    content = <OffersPage onNavigate={changePage} />;
-  else if (page.startsWith('product/'))
-    content = <ProductDetailPage id={page.replace('product/', '')} products={catalog} addToCart={handleAddToCart} />;
-  else if (page === 'about') content = <Storefront view="about" onNavigate={changePage} />;
-  else if (page === 'gallery') content = <Storefront view="gallery" products={catalog} />;
-  else if (page === 'warranty') content = <Storefront view="warranty" onNavigate={changePage} />;
-  else if (page === 'contact') content = <Storefront view="contact" />;
-  else if (page === 'cart')
-    content = <Storefront view="cart" cart={cart} updateQuantity={updateQuantity} onNavigate={changePage} />;
-  else if (page === 'checkout') content = <Storefront view="checkout" cart={cart} onNavigate={changePage} />;
-  else if (page === 'admin') content = <Storefront view="admin" products={catalog} setProducts={updateCatalog} />;
-  else content = <Home products={catalog} categories={categories} onBrowse={() => changePage('mattresses')} onAddToCart={handleAddToCart} />;
-
-
-  return (
-    <>
-      <Header
-        cartCount={cartCount}
-        categories={categories}
-        catalog={catalog}
-        onNavigate={changePage}
-        searchQuery={searchQuery}
-        onSearch={setSearchQuery}
-      />
-      <main>{content}</main>
-      <Footer />
-      <WhatsAppButton />
-      
-      {/* Luxury Redesigned Authentication Modal */}
-      <AuthModal />
-
-      {/* Global Toast Feedback */}
-      {toastMessage && (
-        <div className="somnera-toast-notification">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#241132" strokeWidth="2.5">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          <span>{toastMessage}</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-export default function App() {
-  const [page, setPage] = useState(pageFromHash());
-  const [cart, setCart] = useState([]);
-
-
-const [
-  catalog,
-  setCatalog,
-] = useState([]);
-
-
-const [
-  categories,
-  setCategories,
-] = useState([]);
-
-
-const [
-  catalogLoading,
-  setCatalogLoading,
-] = useState(true);
-
-
-const [
-  catalogError,
-  setCatalogError,
-] = useState('');
-
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [adminLoggedIn, setAdminLoggedIn] = useState(() => sessionStorage.getItem('somnera-admin') === 'true');
-
-  useEffect(() => {
-
-  let cancelled = false;
-
-
-  const loadCatalog =
-    async () => {
-
-      try {
-
-        setCatalogLoading(true);
-
-        setCatalogError('');
-
-
-        const [
-          productsData,
-          categoriesData,
-        ] =
-          await Promise.all([
-            getProductsApi(),
-            getCategoriesApi(),
-          ]);
-
-
-        if (cancelled) {
           return;
         }
 
 
-        setCatalog(
-          mapProductsFromApi(
-            productsData,
+        try {
+
+          setCartLoading(
+            true,
+          );
+
+
+          const response =
+            await getCartApi();
+
+
+          if (cancelled) {
+            return;
+          }
+
+
+          setCart(
+            response.items,
+          );
+
+
+          setCartTotal(
+            response.cartTotal,
+          );
+
+
+          setCartTotalItems(
+            response.totalItems,
+          );
+
+
+        } catch (error) {
+
+          if (!cancelled) {
+
+            console.error(
+              'Unable to load cart:',
+              error,
+            );
+          }
+
+
+        } finally {
+
+          if (!cancelled) {
+
+            setCartLoading(
+              false,
+            );
+          }
+        }
+      };
+
+
+    loadCart();
+
+
+    return () => {
+
+      cancelled =
+        true;
+    };
+
+  }, [
+    isLoggedIn,
+    setCart,
+    setCartTotal,
+    setCartTotalItems,
+    setCartLoading,
+  ]);
+
+
+  /*
+  ==================================================
+  SEARCH
+  ==================================================
+  */
+
+  const filteredCatalog =
+    useMemo(() => {
+
+      if (!searchQuery) {
+
+        return catalog;
+      }
+
+
+      const lower =
+        searchQuery
+          .toLowerCase();
+
+
+      return catalog.filter(
+        (product) =>
+
+          product.name
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.description
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.eyebrow
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.category
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          product.firmness
+            ?.toLowerCase()
+            .includes(lower) ||
+
+          (
+            Array.isArray(
+              product.materials,
+            ) &&
+            product.materials.some(
+              (material) =>
+                material
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ) ||
+
+          (
+            Array.isArray(
+              product.needs,
+            ) &&
+            product.needs.some(
+              (need) =>
+                need
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ) ||
+
+          (
+            Array.isArray(
+              product.tech,
+            ) &&
+            product.tech.some(
+              (tech) =>
+                tech
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
+          ) ||
+
+          (
+            Array.isArray(
+              product.feels,
+            ) &&
+            product.feels.some(
+              (feel) =>
+                feel
+                  ?.toLowerCase()
+                  .includes(lower),
+            )
           ),
+      );
+
+    }, [
+      catalog,
+      searchQuery,
+    ]);
+
+
+  /*
+  ==================================================
+  NAVIGATION
+  ==================================================
+  */
+
+  const changePage =
+    (next) => {
+
+      window.location.hash =
+        next;
+
+
+      setPage(
+        next.split('?')[0],
+      );
+
+
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      });
+    };
+
+
+  /*
+  ==================================================
+  CATALOG
+  ==================================================
+  */
+
+  const updateCatalog =
+    (nextCatalog) => {
+
+      const newProducts =
+        typeof nextCatalog ===
+          'function'
+          ? nextCatalog(
+              catalog,
+            )
+          : nextCatalog;
+
+
+      setCatalog(
+        newProducts,
+      );
+    };
+
+
+  /*
+  ==================================================
+  ADD TO BACKEND CART
+  ==================================================
+  */
+
+  const handleAddToCart =
+    async (item) => {
+
+      /*
+      ==============================================
+      AUTH CHECK
+      ==============================================
+      */
+
+      if (!isLoggedIn) {
+
+        /*
+         * AuthContext stores this item as the
+         * pending cart item.
+         *
+         * After login, AuthProvider calls
+         * onAddToCartSuccess from App().
+         */
+
+        openAuthModal(
+          'login',
+          item,
         );
 
 
-        setCategories(
-          mapCategoriesFromApi(
-            categoriesData,
-          ),
+        return;
+      }
+
+
+      /*
+      ==============================================
+      CURRENT BACKEND CART SUPPORT
+      ==============================================
+
+      Mattress thickness required.
+      */
+
+      const thickness =
+        Number(
+          item.thickness,
+        );
+
+
+      if (
+        ![
+          4,
+          5,
+          6,
+          8,
+        ].includes(
+          thickness,
+        )
+      ) {
+
+        showToast(
+          'Please select a valid mattress thickness.',
+        );
+
+
+        return;
+      }
+
+
+      try {
+
+        const response =
+          await addToCartApi({
+            productId:
+              item.productId ??
+              item.id,
+
+            thickness,
+
+            quantity:
+              1,
+          });
+
+
+        /*
+         * Backend response becomes source of truth.
+         */
+
+        setCart(
+          response.items,
+        );
+
+
+        setCartTotal(
+          response.cartTotal,
+        );
+
+
+        setCartTotalItems(
+          response.totalItems,
+        );
+
+
+        showToast(
+          `${item.name} added to cart!`,
         );
 
 
       } catch (error) {
 
-        if (cancelled) {
-          return;
-        }
-
-
-        console.error(
-          'Unable to load product catalog:',
-          error,
-        );
-
-
-        setCatalog([]);
-
-        setCategories([]);
-
-
-        setCatalogError(
+        showToast(
           error.message ||
-          'Unable to load products. Please try again.',
+          'Unable to add product to cart.',
         );
-
-
-      } finally {
-
-        if (!cancelled) {
-
-          setCatalogLoading(
-            false,
-          );
-        }
       }
     };
 
 
-  loadCatalog();
+  /*
+  ==================================================
+  REMOVE CART ITEM
+  ==================================================
+  */
+
+  const handleRemoveCartItem =
+    async (
+      cartItemId,
+    ) => {
+
+      try {
+
+        const response =
+          await removeCartItemApi(
+            cartItemId,
+          );
 
 
-  return () => {
-    cancelled = true;
-  };
+        setCart(
+          response.items,
+        );
 
-}, []);
 
+        setCartTotal(
+          response.cartTotal,
+        );
+
+
+        setCartTotalItems(
+          response.totalItems,
+        );
+
+
+      } catch (error) {
+
+        showToast(
+          error.message ||
+          'Unable to remove cart item.',
+        );
+      }
+    };
+
+
+  /*
+  ==================================================
+  CLEAR CART
+  ==================================================
+  */
+
+  const handleClearCart =
+    async () => {
+
+      if (
+        cart.length ===
+        0
+      ) {
+
+        return;
+      }
+
+
+      const confirmed =
+        window.confirm(
+          'Are you sure you want to clear your cart?',
+        );
+
+
+      if (!confirmed) {
+
+        return;
+      }
+
+
+      try {
+
+        const response =
+          await clearCartApi();
+
+
+        setCart(
+          response.items,
+        );
+
+
+        setCartTotal(
+          response.cartTotal,
+        );
+
+
+        setCartTotalItems(
+          response.totalItems,
+        );
+
+
+        showToast(
+          'Cart cleared successfully.',
+        );
+
+
+      } catch (error) {
+
+        showToast(
+          error.message ||
+          'Unable to clear cart.',
+        );
+      }
+    };
+
+
+  /*
+  ==================================================
+  UPDATE QUANTITY
+  ==================================================
+  */
+
+  const updateQuantity =
+    async (
+      cartItemId,
+      quantity,
+    ) => {
+
+      /*
+       * Decreasing 1 → 0
+       * removes the item.
+       */
+
+      if (
+        quantity <
+        1
+      ) {
+
+        return handleRemoveCartItem(
+          cartItemId,
+        );
+      }
+
+
+      /*
+       * Backend maximum.
+       */
+
+      if (
+        quantity >
+        10
+      ) {
+
+        showToast(
+          'Maximum quantity allowed is 10.',
+        );
+
+
+        return;
+      }
+
+
+      try {
+
+        const response =
+          await updateCartItemApi(
+            cartItemId,
+            quantity,
+          );
+
+
+        setCart(
+          response.items,
+        );
+
+
+        setCartTotal(
+          response.cartTotal,
+        );
+
+
+        setCartTotalItems(
+          response.totalItems,
+        );
+
+
+      } catch (error) {
+
+        showToast(
+          error.message ||
+          'Unable to update cart quantity.',
+        );
+      }
+    };
+
+
+  /*
+  ==================================================
+  CART COUNT
+  ==================================================
+  */
+
+  const cartCount =
+    cartTotalItems;
+
+
+  /*
+  ==================================================
+  AUTH MODAL HASHES
+  ==================================================
+  */
 
   useEffect(() => {
-    const syncHash = () => setPage(pageFromHash());
-    window.addEventListener('hashchange', syncHash);
 
-    return () => {
-      window.removeEventListener('hashchange', syncHash);
-  
-    };
-  }, []);
-
-  if (window.location.pathname.startsWith('/admin')) {
-    return (
-    <AdminPanel
-  loggedIn={
-    adminLoggedIn
-  }
-  onLogin={() => {
-
-    sessionStorage.setItem(
-      'somnera-admin',
-      'true',
-    );
-
-    setAdminLoggedIn(
-      true,
-    );
-  }}
-  onLogout={() => {
-
-    sessionStorage.removeItem(
-      'somnera-admin',
-    );
+    const hash =
+      window.location.hash
+        .replace(
+          '#',
+          '',
+        )
+        .split('?')[0];
 
 
-    localStorage.removeItem(
-      'somnera_auth_token',
-    );
+    if (
+      [
+        'login',
+        'register',
+        'forgot-password',
+        'reset-password',
+      ].includes(
+        hash,
+      )
+    ) {
 
-
-    localStorage.removeItem(
-      'somnera_auth_user',
-    );
-
-
-    setAdminLoggedIn(
-      false,
-    );
-  }}
-/>
-    );
-  }
-
-  const handleAddToCartSuccess = (item) => {
-    setCart((current) => {
-      const index = current.findIndex(
-        (entry) => entry.id === item.id && entry.size === item.size && entry.thickness === item.thickness
+      openAuthModal(
+        hash,
       );
-      if (index < 0) return [...current, { ...item, quantity: 1 }];
-      return current.map((entry, i) => (i === index ? { ...entry, quantity: entry.quantity + 1 } : entry));
-    });
-  };
+    }
+
+  }, [
+    openAuthModal,
+  ]);
+
+
+  /*
+  ==================================================
+  PROTECTED CUSTOMER PAGES
+  ==================================================
+  */
+
+  useEffect(() => {
+
+    const protectedPages = [
+      'profile',
+      'orders',
+      'checkout',
+    ];
+
+
+    if (
+      !isLoggedIn &&
+      protectedPages.includes(
+        page,
+      )
+    ) {
+
+      openAuthModal(
+        'login',
+      );
+
+
+      window.location.hash =
+        'home';
+    }
+
+  }, [
+    isLoggedIn,
+    page,
+    openAuthModal,
+  ]);
+
+
+  /*
+  ==================================================
+  CATALOG LOADING
+  ==================================================
+  */
+
+  if (
+    catalogLoading
+  ) {
+
+    return (
+
+      <>
+
+        <Header
+          cartCount={
+            cartCount
+          }
+          categories={
+            categories
+          }
+          catalog={
+            catalog
+          }
+          onNavigate={
+            changePage
+          }
+          searchQuery={
+            searchQuery
+          }
+          onSearch={
+            setSearchQuery
+          }
+        />
+
+
+        <main>
+
+          <div
+            className="container"
+            style={{
+              padding:
+                '80px 20px',
+
+              textAlign:
+                'center',
+            }}
+          >
+            Loading products...
+          </div>
+
+        </main>
+
+
+        <Footer />
+
+        <WhatsAppButton />
+
+        <AuthModal />
+
+      </>
+    );
+  }
+
+
+  /*
+  ==================================================
+  CATALOG ERROR
+  ==================================================
+  */
+
+  if (
+    catalogError
+  ) {
+
+    return (
+
+      <>
+
+        <Header
+          cartCount={
+            cartCount
+          }
+          categories={
+            categories
+          }
+          catalog={
+            catalog
+          }
+          onNavigate={
+            changePage
+          }
+          searchQuery={
+            searchQuery
+          }
+          onSearch={
+            setSearchQuery
+          }
+        />
+
+
+        <main>
+
+          <div
+            className="container"
+            style={{
+              padding:
+                '80px 20px',
+
+              textAlign:
+                'center',
+            }}
+          >
+
+            <h2>
+              Unable to load products
+            </h2>
+
+
+            <p>
+              {
+                catalogError
+              }
+            </p>
+
+          </div>
+
+        </main>
+
+
+        <Footer />
+
+        <WhatsAppButton />
+
+        <AuthModal />
+
+      </>
+    );
+  }
+
+
+  /*
+  ==================================================
+  PAGE ROUTING
+  ==================================================
+  */
+
+  let content;
+
+
+  if (
+    page ===
+      'profile' &&
+    isLoggedIn
+  ) {
+
+    content =
+      <ProfilePage />;
+
+
+  } else if (
+    page ===
+      'orders' &&
+    isLoggedIn
+  ) {
+
+    content =
+      <OrdersPage />;
+
+
+  } else if (
+    page ===
+      'products' ||
+    page ===
+      'mattresses'
+  ) {
+
+    content = (
+
+      <MattressesPage
+        products={
+          filteredCatalog.filter(
+            (product) =>
+              !product.productSection ||
+              product.productSection ===
+                'MATTRESS',
+          )
+        }
+        addToCart={
+          handleAddToCart
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'pillows-protectors'
+  ) {
+
+    content = (
+
+      <PillowsProtectorsPage
+        products={
+          catalog.filter(
+            (product) =>
+              product.productSection ===
+              'PILLOWS_ACCESSORIES',
+          )
+        }
+        addToCart={
+          handleAddToCart
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'sofa-cum-bed'
+  ) {
+
+    content = (
+
+      <SofaCumBedPage
+        products={
+          catalog.filter(
+            (product) =>
+              product.productSection ===
+              'SOFA_CUM_BED',
+          )
+        }
+        addToCart={
+          handleAddToCart
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'find-showroom'
+  ) {
+
+    content =
+      <FindShowroomPage />;
+
+
+  } else if (
+    page ===
+    'sleep-advice'
+  ) {
+
+    content =
+      <SleepAdvicePage />;
+
+
+  } else if (
+    page ===
+    'distributor'
+  ) {
+
+    content =
+      <DistributorPage />;
+
+
+  } else if (
+    page ===
+    'wishlist'
+  ) {
+
+    content = (
+
+      <WishlistPage
+        onNavigate={
+          changePage
+        }
+        addToCart={
+          handleAddToCart
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'offers'
+  ) {
+
+    content = (
+
+      <OffersPage
+        onNavigate={
+          changePage
+        }
+      />
+    );
+
+
+  } else if (
+    page.startsWith(
+      'product/',
+    )
+  ) {
+
+    content = (
+
+      <ProductDetailPage
+        id={
+          page.replace(
+            'product/',
+            '',
+          )
+        }
+        products={
+          catalog
+        }
+        addToCart={
+          handleAddToCart
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'about'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="about"
+        onNavigate={
+          changePage
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'gallery'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="gallery"
+        products={
+          catalog
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'warranty'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="warranty"
+        onNavigate={
+          changePage
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'contact'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="contact"
+      />
+    );
+
+
+  } else if (
+    page ===
+    'cart'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="cart"
+
+        cart={
+          cart
+        }
+
+        cartTotal={
+          cartTotal
+        }
+
+        cartLoading={
+          cartLoading
+        }
+
+        updateQuantity={
+          updateQuantity
+        }
+
+        removeCartItem={
+          handleRemoveCartItem
+        }
+
+        clearCart={
+          handleClearCart
+        }
+
+        onNavigate={
+          changePage
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'checkout'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="checkout"
+
+        cart={
+          cart
+        }
+
+        cartTotal={
+          cartTotal
+        }
+
+        onNavigate={
+          changePage
+        }
+      />
+    );
+
+
+  } else if (
+    page ===
+    'admin'
+  ) {
+
+    content = (
+
+      <Storefront
+        view="admin"
+        products={
+          catalog
+        }
+        setProducts={
+          updateCatalog
+        }
+      />
+    );
+
+
+  } else {
+
+    content = (
+
+      <Home
+        products={
+          catalog
+        }
+
+        categories={
+          categories
+        }
+
+        onBrowse={
+          () =>
+            changePage(
+              'mattresses',
+            )
+        }
+
+        onAddToCart={
+          handleAddToCart
+        }
+      />
+    );
+  }
+
+
+  /*
+  ==================================================
+  APPLICATION UI
+  ==================================================
+  */
 
   return (
-    <AuthProvider onAddToCartSuccess={handleAddToCartSuccess}>
-      <MainAppContent
-        cart={cart}
-        setCart={setCart}
-        catalog={catalog}
-        setCatalog={setCatalog}
-        categories={categories}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        page={page}
-        setPage={setPage}
-        catalogLoading={catalogLoading}
-        catalogError={catalogError}
+
+    <>
+
+      <Header
+        cartCount={
+          cartCount
+        }
+        categories={
+          categories
+        }
+        catalog={
+          catalog
+        }
+        onNavigate={
+          changePage
+        }
+        searchQuery={
+          searchQuery
+        }
+        onSearch={
+          setSearchQuery
+        }
       />
+
+
+      <main>
+        {content}
+      </main>
+
+
+      <Footer />
+
+      <WhatsAppButton />
+
+
+      <AuthModal />
+
+
+      {
+        toastMessage && (
+
+          <div className="somnera-toast-notification">
+
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#241132"
+              strokeWidth="2.5"
+            >
+
+              <polyline points="20 6 9 17 4 12" />
+
+            </svg>
+
+
+            <span>
+              {
+                toastMessage
+              }
+            </span>
+
+          </div>
+        )
+      }
+
+    </>
+  );
+}
+
+
+/*
+==================================================
+ROOT APP
+==================================================
+*/
+
+export default function App() {
+
+  /*
+  ==================================================
+  ROUTING
+  ==================================================
+  */
+
+  const [
+    page,
+    setPage,
+  ] = useState(
+    pageFromHash(),
+  );
+
+
+  /*
+  ==================================================
+  BACKEND CART STATE
+  ==================================================
+  */
+
+  const [
+    cart,
+    setCart,
+  ] = useState([]);
+
+
+  const [
+    cartTotal,
+    setCartTotal,
+  ] = useState(0);
+
+
+  const [
+    cartTotalItems,
+    setCartTotalItems,
+  ] = useState(0);
+
+
+  const [
+    cartLoading,
+    setCartLoading,
+  ] = useState(false);
+
+
+  /*
+  ==================================================
+  CATALOG STATE
+  ==================================================
+  */
+
+  const [
+    catalog,
+    setCatalog,
+  ] = useState([]);
+
+
+  const [
+    categories,
+    setCategories,
+  ] = useState([]);
+
+
+  const [
+    catalogLoading,
+    setCatalogLoading,
+  ] = useState(true);
+
+
+  const [
+    catalogError,
+    setCatalogError,
+  ] = useState('');
+
+
+  /*
+  ==================================================
+  SEARCH
+  ==================================================
+  */
+
+  const [
+    searchQuery,
+    setSearchQuery,
+  ] = useState('');
+
+
+  /*
+  ==================================================
+  ADMIN
+  ==================================================
+  */
+
+  const [
+    adminLoggedIn,
+    setAdminLoggedIn,
+  ] = useState(
+    () =>
+      sessionStorage.getItem(
+        'somnera-admin',
+      ) === 'true',
+  );
+
+
+  /*
+  ==================================================
+  LOAD CATALOG
+  ==================================================
+  */
+
+  useEffect(() => {
+
+    let cancelled =
+      false;
+
+
+    const loadCatalog =
+      async () => {
+
+        try {
+
+          setCatalogLoading(
+            true,
+          );
+
+
+          setCatalogError('');
+
+
+          const [
+            productsData,
+            categoriesData,
+          ] =
+            await Promise.all([
+              getProductsApi(),
+              getCategoriesApi(),
+            ]);
+
+
+          if (cancelled) {
+
+            return;
+          }
+
+
+          setCatalog(
+            mapProductsFromApi(
+              productsData,
+            ),
+          );
+
+
+          setCategories(
+            mapCategoriesFromApi(
+              categoriesData,
+            ),
+          );
+
+
+        } catch (error) {
+
+          if (cancelled) {
+
+            return;
+          }
+
+
+          console.error(
+            'Unable to load product catalog:',
+            error,
+          );
+
+
+          setCatalog([]);
+
+          setCategories([]);
+
+
+          setCatalogError(
+            error.message ||
+            'Unable to load products. Please try again.',
+          );
+
+
+        } finally {
+
+          if (!cancelled) {
+
+            setCatalogLoading(
+              false,
+            );
+          }
+        }
+      };
+
+
+    loadCatalog();
+
+
+    return () => {
+
+      cancelled =
+        true;
+    };
+
+  }, []);
+
+
+  /*
+  ==================================================
+  HASH LISTENER
+  ==================================================
+  */
+
+  useEffect(() => {
+
+    const syncHash =
+      () => {
+
+        setPage(
+          pageFromHash(),
+        );
+      };
+
+
+    window.addEventListener(
+      'hashchange',
+      syncHash,
+    );
+
+
+    return () => {
+
+      window.removeEventListener(
+        'hashchange',
+        syncHash,
+      );
+    };
+
+  }, []);
+
+
+  /*
+  ==================================================
+  ADMIN APPLICATION
+  ==================================================
+  */
+
+  if (
+    window.location.pathname.startsWith(
+      '/admin',
+    )
+  ) {
+
+    return (
+
+      <AdminPanel
+        loggedIn={
+          adminLoggedIn
+        }
+
+        onLogin={
+          () => {
+
+            sessionStorage.setItem(
+              'somnera-admin',
+              'true',
+            );
+
+
+            setAdminLoggedIn(
+              true,
+            );
+          }
+        }
+
+        onLogout={
+          () => {
+
+            sessionStorage.removeItem(
+              'somnera-admin',
+            );
+
+
+            localStorage.removeItem(
+              'somnera_auth_token',
+            );
+
+
+            localStorage.removeItem(
+              'somnera_auth_user',
+            );
+
+
+            setAdminLoggedIn(
+              false,
+            );
+          }
+        }
+      />
+    );
+  }
+
+
+  /*
+  ==================================================
+  RESUME ADD TO CART AFTER LOGIN
+  ==================================================
+
+  IMPORTANT:
+
+  This function MUST exist in App()
+  because AuthProvider is also created here.
+
+  AuthContext invokes this after successful login
+  when a user originally clicked Add To Cart
+  while logged out.
+  */
+
+  const handleAddToCartSuccess =
+    async (item) => {
+
+      const thickness =
+        Number(
+          item?.thickness,
+        );
+
+
+      if (
+        ![
+          4,
+          5,
+          6,
+          8,
+        ].includes(
+          thickness,
+        )
+      ) {
+
+        console.error(
+          'Unable to resume cart action: invalid thickness.',
+        );
+
+
+        return;
+      }
+
+
+      try {
+
+        /*
+         * At this point AuthContext has already
+         * saved the user's JWT, so Axios will
+         * attach Authorization automatically.
+         */
+
+        const response =
+          await addToCartApi({
+            productId:
+              item.productId ??
+              item.id,
+
+            thickness,
+
+            quantity:
+              1,
+          });
+
+
+        setCart(
+          response.items,
+        );
+
+
+        setCartTotal(
+          response.cartTotal,
+        );
+
+
+        setCartTotalItems(
+          response.totalItems,
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          'Unable to resume pending cart action:',
+          error,
+        );
+      }
+    };
+
+
+  /*
+  ==================================================
+  CUSTOMER APPLICATION PROVIDER
+  ==================================================
+  */
+
+  return (
+
+    <AuthProvider
+      onAddToCartSuccess={
+        handleAddToCartSuccess
+      }
+    >
+
+      <MainAppContent
+        cart={
+          cart
+        }
+
+        setCart={
+          setCart
+        }
+
+
+        cartTotal={
+          cartTotal
+        }
+
+        setCartTotal={
+          setCartTotal
+        }
+
+
+        cartTotalItems={
+          cartTotalItems
+        }
+
+        setCartTotalItems={
+          setCartTotalItems
+        }
+
+
+        cartLoading={
+          cartLoading
+        }
+
+        setCartLoading={
+          setCartLoading
+        }
+
+
+        catalog={
+          catalog
+        }
+
+        setCatalog={
+          setCatalog
+        }
+
+
+        categories={
+          categories
+        }
+
+
+        searchQuery={
+          searchQuery
+        }
+
+        setSearchQuery={
+          setSearchQuery
+        }
+
+
+        page={
+          page
+        }
+
+        setPage={
+          setPage
+        }
+
+
+        catalogLoading={
+          catalogLoading
+        }
+
+        catalogError={
+          catalogError
+        }
+      />
+
     </AuthProvider>
   );
 }

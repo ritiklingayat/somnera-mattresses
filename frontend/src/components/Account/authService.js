@@ -211,3 +211,29 @@ export async function getMyOrdersApi() {
 
   return response.data;
 }
+
+/*
+==================================================
+MY ORDER BY ID
+==================================================
+
+Backend:
+GET /api/orders/{orderId}
+
+Backend automatically verifies that the
+requested order belongs to the authenticated user.
+*/
+
+export async function getMyOrderByIdApi(
+  orderId,
+) {
+
+  const response =
+    await apiRequest(
+      `/api/orders/${orderId}`,
+      'GET',
+    );
+
+
+  return response.data;
+}

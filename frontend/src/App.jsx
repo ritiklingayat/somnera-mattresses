@@ -91,6 +91,9 @@ import ProfilePage
 import OrdersPage
   from './pages/Account/OrdersPage';
 
+  import OrderDetailsPage
+  from './pages/Account/OrderDetailsPage';
+
 
 /*
 ==================================================
@@ -841,10 +844,36 @@ function MainAppContent({
   useEffect(() => {
 
     const protectedPages = [
-      'profile',
-      'orders',
-      'checkout',
-    ];
+  'profile',
+  'orders',
+  'checkout',
+];
+
+
+const isProtectedOrderDetails =
+  page.startsWith(
+    'order/',
+  );
+
+
+if (
+  !isLoggedIn &&
+  (
+    protectedPages.includes(
+      page,
+    ) ||
+    isProtectedOrderDetails
+  )
+) {
+
+  openAuthModal(
+    'login',
+  );
+
+
+  window.location.hash =
+    'home';
+}
 
 
     if (
@@ -1021,23 +1050,43 @@ function MainAppContent({
 
 
   if (
-    page ===
-      'profile' &&
-    isLoggedIn
-  ) {
+  page ===
+    'profile' &&
+  isLoggedIn
+) {
 
-    content =
-      <ProfilePage />;
+  content =
+    <ProfilePage />;
 
 
-  } else if (
-    page ===
-      'orders' &&
-    isLoggedIn
-  ) {
+} else if (
+  page ===
+    'orders' &&
+  isLoggedIn
+) {
 
-    content =
-      <OrdersPage />;
+  content =
+    <OrdersPage />;
+
+
+} else if (
+  page.startsWith(
+    'order/',
+  ) &&
+  isLoggedIn
+) {
+
+  content = (
+
+    <OrderDetailsPage
+      orderId={
+        page.replace(
+          'order/',
+          '',
+        )
+      }
+    />
+  );
 
 
   } else if (

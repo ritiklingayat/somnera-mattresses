@@ -119,9 +119,14 @@ public class SecurityConfig {
 
                                 //distributor
                                 .requestMatchers(
-                                        "/api/distributor-requests/**"
-                                )
-                                .permitAll()
+                                        org.springframework.http.HttpMethod.POST,
+                                        "/api/distributor-requests"
+                                        ).permitAll()
+
+                                .requestMatchers(
+                                                org.springframework.http.HttpMethod.GET,
+                                                "/api/distributor-requests"
+                                                        ).hasRole("ADMIN")
 
                                 //wishlist
                                 .requestMatchers(

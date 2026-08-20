@@ -25,4 +25,6 @@ public interface OrderService {
             Long orderId,
             String userEmail
     );
+
+    List<OrderResponse> getAllOrders();
 }

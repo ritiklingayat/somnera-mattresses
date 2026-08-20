@@ -41,4 +41,6 @@ public interface OrderRepository
             Long orderId,
             User user
     );
+
+    List<Order> findAllByOrderByCreatedAtDesc();
 }

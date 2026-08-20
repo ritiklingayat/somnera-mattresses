@@ -117,6 +117,42 @@ public class OrderServiceImpl
     }
 
 
+    /*
+==============================================
+ADMIN - GET ALL CUSTOMER ORDERS
+==============================================
+*/
+
+@Override
+@Transactional(readOnly = true)
+public List<OrderResponse> getAllOrders() {
+
+
+    List<Order> orders =
+            orderRepository
+                    .findAllByOrderByCreatedAtDesc();
+
+
+    List<OrderResponse> responses =
+            new ArrayList<>();
+
+
+    for (
+            Order order :
+            orders
+    ) {
+
+        responses.add(
+                mapToOrderResponse(
+                        order
+                )
+        );
+    }
+
+
+    return responses;
+}
+
 
     // ==============================
     // GET USER

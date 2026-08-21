@@ -1,19 +1,23 @@
 package com.example.somnera_mattress_backend.controller;
 
+import com.example.somnera_mattress_backend.dto.request.UpdateUserStatusRequest;
 import com.example.somnera_mattress_backend.dto.response.ApiResponse;
+import com.example.somnera_mattress_backend.dto.response.OrderResponse;
 import com.example.somnera_mattress_backend.dto.response.UserResponse;
 import com.example.somnera_mattress_backend.service.OrderService;
 import com.example.somnera_mattress_backend.service.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.example.somnera_mattress_backend.dto.response.OrderResponse;
-import com.example.somnera_mattress_backend.service.OrderService;
 
 import java.util.List;
 
@@ -27,7 +31,9 @@ public class AdminController {
     private final UserService
             userService;
 
-    private final OrderService orderService;
+
+    private final OrderService
+            orderService;
 
 
     /*
@@ -53,35 +59,36 @@ public class AdminController {
         );
     }
 
+
     /*
-==============================================
-GET ALL CUSTOMER ORDERS
-==============================================
-*/
+    ==============================================
+    GET ALL CUSTOMER ORDERS
+    ==============================================
+    */
 
-@GetMapping("/orders")
-@PreAuthorize("hasRole('ADMIN')")
-public ResponseEntity<
-        ApiResponse<List<OrderResponse>>
-        >
-getAllOrders() {
-
-
-    List<OrderResponse> orders =
-            orderService
-                    .getAllOrders();
+    @GetMapping("/orders")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<
+            ApiResponse<List<OrderResponse>>
+            >
+    getAllOrders() {
 
 
-    return ResponseEntity.ok(
+        List<OrderResponse> orders =
+                orderService
+                        .getAllOrders();
 
-            ApiResponse.success(
 
-                    "Orders fetched successfully",
+        return ResponseEntity.ok(
 
-                    orders
-            )
-    );
-}
+                ApiResponse.success(
+
+                        "Orders fetched successfully",
+
+                        orders
+                )
+        );
+    }
 
 
     /*
@@ -110,6 +117,53 @@ getAllOrders() {
                         "Customers fetched successfully",
 
                         customers
+                )
+        );
+    }
+
+
+    /*
+    ==============================================
+    UPDATE CUSTOMER STATUS
+    ==============================================
+
+    ACTIVE
+    INACTIVE
+    BLOCKED
+    */
+
+    @PutMapping("/customers/{userId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<
+            ApiResponse<UserResponse>
+            >
+    updateCustomerStatus(
+
+            @PathVariable Long userId,
+
+            @Valid
+            @RequestBody
+            UpdateUserStatusRequest request
+    ) {
+
+
+        UserResponse user =
+                userService
+                        .updateUserStatus(
+
+                                userId,
+
+                                request.getStatus()
+                        );
+
+
+        return ResponseEntity.ok(
+
+                ApiResponse.success(
+
+                        "Customer status updated successfully",
+
+                        user
                 )
         );
     }

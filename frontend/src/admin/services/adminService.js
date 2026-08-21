@@ -79,3 +79,31 @@ export async function getAdminDistributorRequestsApi() {
     ? response.data
     : [];
 }
+
+
+/*
+==================================================
+UPDATE CUSTOMER STATUS
+==================================================
+
+Backend:
+PUT /api/admin/customers/{userId}/status
+*/
+
+export async function updateAdminCustomerStatusApi(
+  userId,
+  status,
+) {
+
+  const response =
+    await apiRequest(
+      `/api/admin/customers/${userId}/status`,
+      'PUT',
+      {
+        status,
+      },
+    );
+
+
+  return response.data;
+}

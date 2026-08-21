@@ -2,7 +2,9 @@ package com.example.somnera_mattress_backend.serviceImpl;
 
 import com.example.somnera_mattress_backend.dto.response.UserResponse;
 import com.example.somnera_mattress_backend.entity.Role;
+import com.example.somnera_mattress_backend.entity.Status;
 import com.example.somnera_mattress_backend.entity.User;
+import com.example.somnera_mattress_backend.exception.BadRequestException;
 import com.example.somnera_mattress_backend.exception.ResourceNotFoundException;
 import com.example.somnera_mattress_backend.repository.UserRepository;
 import com.example.somnera_mattress_backend.service.UserService;
@@ -27,7 +29,69 @@ public class UserServiceImpl
 
     /*
     ==============================================
-    CURRENT USER
+    ADMIN - UPDATE CUSTOMER STATUS
+    ==============================================
+    */
+
+    @Override
+    @Transactional
+    public UserResponse updateUserStatus(
+            Long userId,
+            Status status
+    ) {
+
+
+        User user =
+                userRepository
+                        .findById(
+                                userId
+                        )
+                        .orElseThrow(
+
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "User not found"
+                                        )
+                        );
+
+
+        /*
+         * Customer management must never
+         * modify an ADMIN account.
+         */
+
+        if (
+                user.getRole()
+                        == Role.ADMIN
+        ) {
+
+            throw new BadRequestException(
+                    "Admin status cannot be changed"
+            );
+        }
+
+
+        user.setStatus(
+                status
+        );
+
+
+        User savedUser =
+                userRepository
+                        .save(
+                                user
+                        );
+
+
+        return mapToResponse(
+                savedUser
+        );
+    }
+
+
+    /*
+    ==============================================
+    CURRENT LOGGED-IN USER
     ==============================================
     */
 
@@ -84,7 +148,7 @@ public class UserServiceImpl
 
     /*
     ==============================================
-    MAP USER -> RESPONSE
+    MAP USER -> USER RESPONSE
     ==============================================
     */
 

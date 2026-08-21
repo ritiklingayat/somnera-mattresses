@@ -158,75 +158,167 @@ public class AuthServiceImpl
         return mapToUserResponse(savedUser);
     }
 
-    @Override
-    public LoginResponse login(
-            LoginRequest request
-    ) {
-        String email =
-                normalizeEmail(
-                        request.getEmail()
-                );
+   @Override
+public LoginResponse login(
+        LoginRequest request
+) {
 
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            email,
-                            request.getPassword()
+    String email =
+            normalizeEmail(
+                    request.getEmail()
+            );
+
+
+    /*
+    ==============================================
+    FIND USER FIRST
+    ==============================================
+    */
+
+    User user =
+            userRepository
+                    .findByEmailIgnoreCase(
+                            email
                     )
-            );
+                    .orElseThrow(
 
-        } catch (AuthenticationException exception) {
-            throw new UnauthorizedException(
-                    "Invalid email or password"
-            );
-        }
+                            () ->
+                                    new UnauthorizedException(
+                                            "Invalid email or password"
+                                    )
+                    );
 
-        User user =
-                userRepository
-                        .findByEmailIgnoreCase(email)
-                        .orElseThrow(
-                                () -> new UnauthorizedException(
-                                        "Invalid email or password"
-                                )
-                        );
 
-        if (
-                user.getStatus()
-                        == Status.BLOCKED
-        ) {
-            throw new UnauthorizedException(
-                    "Your account has been blocked"
-            );
-        }
+    /*
+    ==============================================
+    ACCOUNT STATUS
+    ==============================================
+    */
 
-        if (
-                user.getStatus()
-                        != Status.ACTIVE
-        ) {
-            throw new UnauthorizedException(
-                    "Your account is not active"
-            );
-        }
+    if (
+            user.getStatus()
+                    == Status.BLOCKED
+    ) {
 
-        if (!user.isEmailVerified()) {
-            throw new UnauthorizedException(
-                    "Please verify your email before logging in"
-            );
-        }
-
-        String token =
-                jwtService.generateToken(user);
-
-        return LoginResponse.builder()
-                .token(token)
-                .tokenType("Bearer")
-                .userId(user.getId())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .build();
+        throw new UnauthorizedException(
+                "Your account has been blocked. Please contact support."
+        );
     }
+
+
+    if (
+            user.getStatus()
+                    == Status.INACTIVE
+    ) {
+
+        throw new UnauthorizedException(
+                "Your account is inactive. Please contact support."
+        );
+    }
+
+
+    if (
+            user.getStatus()
+                    != Status.ACTIVE
+    ) {
+
+        throw new UnauthorizedException(
+                "Your account is not active."
+        );
+    }
+
+
+    /*
+    ==============================================
+    EMAIL VERIFICATION
+    ==============================================
+    */
+
+    if (
+            !user.isEmailVerified()
+    ) {
+
+        throw new UnauthorizedException(
+                "Please verify your email before logging in"
+        );
+    }
+
+
+    /*
+    ==============================================
+    PASSWORD AUTHENTICATION
+    ==============================================
+    */
+
+    try {
+
+        authenticationManager.authenticate(
+
+                new UsernamePasswordAuthenticationToken(
+
+                        email,
+
+                        request.getPassword()
+                )
+        );
+
+
+    } catch (
+            AuthenticationException exception
+    ) {
+
+        throw new UnauthorizedException(
+                "Invalid email or password"
+        );
+    }
+
+
+    /*
+    ==============================================
+    JWT
+    ==============================================
+    */
+
+    String token =
+            jwtService
+                    .generateToken(
+                            user
+                    );
+
+
+    return LoginResponse
+            .builder()
+
+            .token(
+                    token
+            )
+
+            .tokenType(
+                    "Bearer"
+            )
+
+            .userId(
+                    user.getId()
+            )
+
+            .firstName(
+                    user.getFirstName()
+            )
+
+            .lastName(
+                    user.getLastName()
+            )
+
+            .email(
+                    user.getEmail()
+            )
+
+            .role(
+                    user.getRole()
+            )
+
+            .build();
+}
 
     @Override
     @Transactional

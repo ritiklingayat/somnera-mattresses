@@ -6,6 +6,33 @@
   --admin-line: #e6e1da;
   --admin-accent: #c9a654;
 }
+
+.customer-status-select {
+  min-width: 125px;
+  padding: 9px 12px;
+
+  border: 1px solid #ddd6cf;
+  border-radius: 6px;
+
+  background: #fff;
+  color: #21152a;
+
+  font: inherit;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.customer-status-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.customer-status-select:focus {
+  outline: 2px solid #caa84c;
+  outline-offset: 2px;
+}
+
 .admin-login {
   min-height: 100vh;
   display: grid;

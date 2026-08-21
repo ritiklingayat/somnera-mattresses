@@ -6,6 +6,7 @@ import {
 
 import {
   getAdminCustomersApi,
+  updateAdminCustomerStatusApi,
 } from '../services/adminService';
 
 
@@ -32,6 +33,11 @@ function statusLabel(
 export default function CustomersPage() {
 
   const [
+  updatingId,
+  setUpdatingId,
+] = useState(null);
+
+  const [
     customers,
     setCustomers,
   ] = useState([]);
@@ -54,6 +60,69 @@ export default function CustomersPage() {
     setQuery,
   ] = useState('');
 
+
+  const handleStatusChange =
+  async (
+    customerId,
+    newStatus,
+  ) => {
+
+    const confirmed =
+      window.confirm(
+        `Change this customer's status to ${newStatus}?`,
+      );
+
+
+    if (!confirmed) {
+
+      return;
+    }
+
+
+    try {
+
+      setUpdatingId(
+        customerId,
+      );
+
+
+      const updatedCustomer =
+        await updateAdminCustomerStatusApi(
+          customerId,
+          newStatus,
+        );
+
+
+      setCustomers(
+        (current) =>
+          current.map(
+            (customer) =>
+              customer.id ===
+              customerId
+                ? {
+                    ...customer,
+                    ...updatedCustomer,
+                  }
+                : customer,
+          ),
+      );
+
+
+    } catch (error) {
+
+      alert(
+        error.message ||
+        'Unable to update customer status.',
+      );
+
+
+    } finally {
+
+      setUpdatingId(
+        null,
+      );
+    }
+  };
 
   /*
   ================================================
@@ -402,22 +471,38 @@ export default function CustomersPage() {
 
                             <span>
 
-                              <span
-                                className={
-                                  `order-status status-${String(
-                                    customer.status ||
-                                    '',
-                                  ).toLowerCase()}`
-                                }
-                              >
+                              <select
+  value={
+    customer.status ||
+    'ACTIVE'
+  }
+  disabled={
+    updatingId ===
+    customer.id
+  }
+  onChange={
+    (event) =>
+      handleStatusChange(
+        customer.id,
+        event.target.value,
+      )
+  }
+  className="customer-status-select"
+>
 
-                                {
-                                  statusLabel(
-                                    customer.status,
-                                  )
-                                }
+  <option value="ACTIVE">
+    Active
+  </option>
 
-                              </span>
+  <option value="INACTIVE">
+    Inactive
+  </option>
+
+  <option value="BLOCKED">
+    Blocked
+  </option>
+
+</select>
 
                             </span>
 
